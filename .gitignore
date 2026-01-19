@@ -1,0 +1,30 @@
+# Node.js auth folder
+auth_info/
+
+# Data and exports
+data/
+exports/
+*.db
+
+# Node.js
+node_modules/
+dist/
+*.log
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

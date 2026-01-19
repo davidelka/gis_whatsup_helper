@@ -1,0 +1,10 @@
+# Python GIS Processor
+flask>=2.3.0
+flask-cors>=4.0.0
+geopandas>=0.14.0
+shapely>=2.0.0
+fiona>=1.9.0
+sqlalchemy>=2.0.0
+pyyaml>=6.0.0
+python-dateutil>=2.8.0
+pyproj>=3.6.0

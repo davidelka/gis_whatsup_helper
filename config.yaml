@@ -1,0 +1,27 @@
+whatsapp:
+  # Target groups to listen to
+  # To find group IDs, run the bot and check the logs for incoming messages
+  # Group IDs look like: 123456789012345678@g.us
+  report_timeout_seconds: 120
+  target_groups:
+    - name: "ניסוי"
+      id: "120363424895032057@g.us"
+    # Add more groups as needed:
+    # - name: "Another Group"
+    #   id: "987654321098765432@g.us"
+    - name: "דקירות פארן"
+      id: "120363404243096973@g.us"
+    - name: "נעלים"
+      id: "120363406931200969@g.us"
+    - name: "לז"
+      id: "120363406827366979@g.us"
+python_service:
+  host: "localhost"
+  port: 5000
+
+storage:
+  database: "sqlite:///data/messages.db"
+  export_dir: "./exports"
+
+logging:
+  level: "info"  # debug, info, warn, error

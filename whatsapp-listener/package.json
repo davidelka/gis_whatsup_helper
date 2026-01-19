@@ -1,0 +1,32 @@
+{
+    "name": "whatsapp-listener",
+    "version": "1.0.0",
+    "description": "WhatsApp group listener using whatsapp-web.js - forwards messages to GIS processor",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "dev": "ts-node src/index.ts",
+        "clean": "rm -rf dist .wwebjs_auth .wwebjs_cache"
+    },
+    "keywords": [
+        "whatsapp",
+        "gis"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "axios": "^1.6.0",
+        "js-yaml": "^4.1.0",
+        "pino": "^8.16.0",
+        "pino-pretty": "^10.2.3",
+        "qrcode-terminal": "^0.12.0",
+        "whatsapp-web.js": "^1.26.0"
+    },
+    "devDependencies": {
+        "@types/js-yaml": "^4.0.9",
+        "@types/node": "^20.9.0",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.2.2"
+    }
+}
