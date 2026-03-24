@@ -394,6 +394,12 @@
     <div class="notification" id="notification"></div>
 
     <script>
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+
         let currentPlatform = 'whatsapp';
         let activeLogService = null;
         let logInterval = null;
@@ -662,8 +668,8 @@
                 }
                 container.innerHTML = groups.map(g => `
                     <button class="btn btn-add" style="font-size:0.85rem;padding:6px 14px"
-                        onclick="quickAddGroup('${g.id.replace(/'/g, "\\'")}', '${(g.name || '').replace(/'/g, "\\'")}')">
-                        + ${g.name || g.id}
+                        onclick="quickAddGroup('${esc(g.id).replace(/'/g, "&#39;")}', '${esc(g.name).replace(/'/g, "&#39;")}')">
+                        + ${esc(g.name || g.id)}
                     </button>
                 `).join('');
             } catch (e) {
@@ -694,8 +700,8 @@
             }
             body.innerHTML = groups.map(g => `
                 <tr>
-                    <td>${g.group_name || '-'}</td>
-                    <td style="font-family:monospace;font-size:0.8rem">${g.group_id}</td>
+                    <td>${esc(g.group_name || '-')}</td>
+                    <td style="font-family:monospace;font-size:0.8rem">${esc(g.group_id)}</td>
                     <td>
                         <label class="toggle">
                             <input type="checkbox" ${g.is_active ? 'checked' : ''} onchange="toggleGroup(${g.id}, this.checked)">

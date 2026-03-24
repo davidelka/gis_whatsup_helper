@@ -31,6 +31,7 @@ class ServiceManager:
         self.project_root = project_root
         self.processes: dict[str, subprocess.Popen] = {}
         self.start_times: dict[str, float] = {}
+        self.log_files: dict[str, any] = {}
         self.log_dir = os.path.join(project_root, 'gis-processor', 'data', 'logs')
         os.makedirs(self.log_dir, exist_ok=True)
         self.auth_states: dict[str, dict] = {
@@ -69,6 +70,7 @@ class ServiceManager:
             )
             self.processes[service_name] = proc
             self.start_times[service_name] = time.time()
+            self.log_files[service_name] = log_file
 
             logger.info(f'Started {svc["name"]} (PID {proc.pid})')
             return {
@@ -106,6 +108,12 @@ class ServiceManager:
         finally:
             self.processes.pop(service_name, None)
             self.start_times.pop(service_name, None)
+            log_file = self.log_files.pop(service_name, None)
+            if log_file:
+                try:
+                    log_file.close()
+                except Exception:
+                    pass
 
         self.update_auth(service_name, {'status': 'disconnected', 'qr_data': None, 'bot_username': None})
         return {'status': 'stopped', 'name': SERVICES[service_name]['name']}
