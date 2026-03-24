@@ -65,9 +65,21 @@ async function startBot() {
     );
 
     // Handle all message types
+    // Track discovered groups so the UI can show them
+    const discoveredGroupIds = new Set<string>();
+
     bot.on('message', async (ctx) => {
         const chat = ctx.message.chat;
         const chatId = String(chat.id);
+
+        // Report new groups to management server for discovery
+        if (chat.type !== 'private' && !discoveredGroupIds.has(chatId)) {
+            discoveredGroupIds.add(chatId);
+            const groupName = 'title' in chat ? chat.title || chatId : chatId;
+            axios.post(`${pythonServiceUrl}/api/services/telegram/discovered-groups`, {
+                group: { id: chatId, name: groupName }
+            }, { timeout: 3000 }).catch(() => {});
+        }
 
         if (chat.type === 'private') {
             if (!allowDMs) {

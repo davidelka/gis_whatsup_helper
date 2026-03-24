@@ -1119,6 +1119,26 @@ def save_telegram_token():
     return jsonify({'error': 'Failed to save token'}), 500
 
 
+@app.route('/api/services/<name>/discovered-groups', methods=['GET'])
+def get_discovered_groups(name):
+    return jsonify({'groups': service_manager.get_discovered_groups(name)})
+
+
+@app.route('/api/services/<name>/discovered-groups', methods=['POST'])
+def post_discovered_groups(name):
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data'}), 400
+    groups = data.get('groups', [])
+    if groups:
+        service_manager.set_discovered_groups(name, groups)
+    else:
+        group = data.get('group')
+        if group:
+            service_manager.add_discovered_group(name, group)
+    return jsonify({'status': 'ok'})
+
+
 @app.route('/api/services/<name>/logs', methods=['GET'])
 def get_service_logs(name):
     lines = request.args.get('lines', 100, type=int)

@@ -36,6 +36,11 @@ class ServiceManager:
             'whatsapp': {'status': 'disconnected', 'updated_at': 0},
             'telegram': {'status': 'disconnected', 'updated_at': 0},
         }
+        # Discovered groups: { 'whatsapp': [{ id, name }], 'telegram': [{ id, name }] }
+        self.discovered_groups: dict[str, list[dict]] = {
+            'whatsapp': [],
+            'telegram': [],
+        }
 
     def start(self, service_name: str) -> dict:
         if service_name not in SERVICES:
@@ -175,6 +180,19 @@ class ServiceManager:
         except Exception as e:
             logger.error(f'Failed to save Telegram token: {e}')
             return False
+
+    def set_discovered_groups(self, service_name: str, groups: list[dict]):
+        self.discovered_groups[service_name] = groups
+
+    def add_discovered_group(self, service_name: str, group: dict):
+        existing = self.discovered_groups.get(service_name, [])
+        # Deduplicate by id
+        if not any(g['id'] == group['id'] for g in existing):
+            existing.append(group)
+            self.discovered_groups[service_name] = existing
+
+    def get_discovered_groups(self, service_name: str) -> list[dict]:
+        return self.discovered_groups.get(service_name, [])
 
     def stop_all(self):
         for name in list(self.processes.keys()):

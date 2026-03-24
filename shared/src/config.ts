@@ -40,10 +40,24 @@ export interface Config {
     logging: LoggingConfig;
 }
 
+function findConfigFile(): string {
+    // Try multiple paths to find config.yaml
+    const candidates = [
+        path.resolve(process.cwd(), '../config.yaml'),   // From listener dirs
+        path.resolve(process.cwd(), 'config.yaml'),      // From project root
+        path.resolve(__dirname, '../../../config.yaml'),  // From shared/dist or shared/src
+        path.resolve(__dirname, '../../config.yaml'),     // Fallback
+    ];
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) return candidate;
+    }
+    throw new Error(`Config file not found. Tried: ${candidates.join(', ')}`);
+}
+
 export function loadConfig(configDir?: string): Config {
     const configPath = configDir
         ? path.resolve(configDir, 'config.yaml')
-        : path.resolve(__dirname, '../../../config.yaml');
+        : findConfigFile();
 
     if (!fs.existsSync(configPath)) {
         throw new Error(`Config file not found: ${configPath}`);

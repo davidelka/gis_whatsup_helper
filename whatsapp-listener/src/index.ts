@@ -151,16 +151,26 @@ async function startBot(): Promise<Client> {
             ]);
             const allGroups = chats.filter(chat => chat.isGroup);
 
-            logger.info('--- Group Discovery ---');
+            // Report all discovered groups to management server
+            const discoveredGroups = allGroups.map(g => ({
+                id: g.id._serialized,
+                name: g.name,
+            }));
+            axios.post(`${pythonServiceUrl}/api/services/whatsapp/discovered-groups`, {
+                groups: discoveredGroups
+            }, { timeout: 5000 }).catch(() => {});
+
+            logger.info({ count: allGroups.length }, 'Discovered groups reported to management server');
+
+            // Log configured group status
             for (const gId of targetGroups) {
                 const foundGroup = allGroups.find(g => g.id._serialized === gId);
                 if (foundGroup) {
-                    logger.info({ id: gId, name: foundGroup.name }, 'Group found');
+                    logger.info({ id: gId, name: foundGroup.name }, 'Configured group found');
                 } else {
-                    logger.warn({ id: gId }, 'Group not found on WhatsApp');
+                    logger.warn({ id: gId }, 'Configured group not found on WhatsApp');
                 }
             }
-            logger.info('-----------------------');
         } catch (error: any) {
             logger.warn({ error: error.message }, 'Could not list groups. Discovery via incoming messages is active.');
         }

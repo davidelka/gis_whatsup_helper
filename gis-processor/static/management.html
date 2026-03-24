@@ -330,9 +330,13 @@
                 </thead>
                 <tbody id="groups-body"></tbody>
             </table>
+            <div style="margin-top:16px">
+                <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:8px">Discovered Groups (from listener):</div>
+                <div id="discovered-groups" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+            </div>
             <div class="add-group-form">
-                <input type="text" id="new-group-name" placeholder="Group Name">
-                <input type="text" id="new-group-id" placeholder="Group ID">
+                <input type="text" id="new-group-name" placeholder="Group Name (manual)">
+                <input type="text" id="new-group-id" placeholder="Group ID (manual)">
                 <label class="dm-label"><input type="checkbox" id="new-group-dm"> DM</label>
                 <button class="btn btn-add" onclick="addGroup()">Add</button>
             </div>
@@ -552,12 +556,53 @@
         }
 
         // ===== Groups =====
+        let configuredGroupIds = new Set();
+
         async function loadGroups() {
             try {
                 const res = await fetch(`/api/groups?platform=${currentPlatform}`);
                 const data = await res.json();
+                configuredGroupIds = new Set(data.groups.map(g => g.group_id));
                 renderGroups(data.groups);
+                loadDiscoveredGroups();
             } catch (e) { console.error('Failed to load groups:', e); }
+        }
+
+        async function loadDiscoveredGroups() {
+            const container = document.getElementById('discovered-groups');
+            const platform = currentPlatform;
+            try {
+                const res = await fetch(`/api/services/${platform}/discovered-groups`);
+                const data = await res.json();
+                const groups = (data.groups || []).filter(g => !configuredGroupIds.has(g.id));
+                if (groups.length === 0) {
+                    container.innerHTML = '<span style="color:var(--text-dim);font-size:0.85rem">No new groups discovered. Start the listener and send a message in a group.</span>';
+                    return;
+                }
+                container.innerHTML = groups.map(g => `
+                    <button class="btn btn-add" style="font-size:0.85rem;padding:6px 14px"
+                        onclick="quickAddGroup('${g.id.replace(/'/g, "\\'")}', '${(g.name || '').replace(/'/g, "\\'")}')">
+                        + ${g.name || g.id}
+                    </button>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = '';
+            }
+        }
+
+        async function quickAddGroup(groupId, groupName) {
+            try {
+                const res = await fetch('/api/groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ platform: currentPlatform, group_id: groupId, group_name: groupName, is_dm: false })
+                });
+                const data = await res.json();
+                if (data.error) { notify(data.error, true); } else {
+                    notify(`Added: ${groupName || groupId}`);
+                    loadGroups();
+                }
+            } catch (e) { notify('Failed to add group', true); }
         }
 
         function renderGroups(groups) {
