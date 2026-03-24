@@ -6,6 +6,7 @@ import signal
 import subprocess
 import time
 import logging
+import yaml
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,10 @@ class ServiceManager:
         self.start_times: dict[str, float] = {}
         self.log_dir = os.path.join(project_root, 'gis-processor', 'data', 'logs')
         os.makedirs(self.log_dir, exist_ok=True)
+        self.auth_states: dict[str, dict] = {
+            'whatsapp': {'status': 'disconnected', 'updated_at': 0},
+            'telegram': {'status': 'disconnected', 'updated_at': 0},
+        }
 
     def start(self, service_name: str) -> dict:
         if service_name not in SERVICES:
@@ -96,6 +101,7 @@ class ServiceManager:
             self.processes.pop(service_name, None)
             self.start_times.pop(service_name, None)
 
+        self.update_auth(service_name, {'status': 'disconnected', 'qr_data': None, 'bot_username': None})
         return {'status': 'stopped', 'name': SERVICES[service_name]['name']}
 
     def status(self, service_name: str) -> dict:
@@ -142,6 +148,33 @@ class ServiceManager:
                 return ''.join(all_lines[-lines:])
         except Exception:
             return ''
+
+    def update_auth(self, service_name: str, data: dict):
+        if service_name not in self.auth_states:
+            self.auth_states[service_name] = {}
+        self.auth_states[service_name].update(data)
+        self.auth_states[service_name]['updated_at'] = time.time()
+
+    def get_auth(self, service_name: str) -> dict:
+        return self.auth_states.get(service_name, {'status': 'disconnected'})
+
+    def save_telegram_token(self, token: str) -> bool:
+        config_path = os.path.join(self.project_root, 'config.yaml')
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            if 'telegram' not in config:
+                config['telegram'] = {}
+            config['telegram']['bot_token'] = token
+
+            with open(config_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
+            return True
+        except Exception as e:
+            logger.error(f'Failed to save Telegram token: {e}')
+            return False
 
     def stop_all(self):
         for name in list(self.processes.keys()):

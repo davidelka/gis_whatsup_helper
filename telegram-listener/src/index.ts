@@ -1,4 +1,5 @@
 import { Bot } from 'grammy';
+import axios from 'axios';
 import {
     loadConfig,
     getPythonServiceUrl,
@@ -8,6 +9,11 @@ import {
     TargetGroup,
 } from '@gis-bot/shared';
 import { TelegramMessageHandler } from './messageHandler';
+
+/** Fire-and-forget POST auth state to management server */
+function postAuth(baseUrl: string, data: Record<string, any>) {
+    axios.post(`${baseUrl}/api/services/telegram/auth`, data, { timeout: 3000 }).catch(() => {});
+}
 
 async function startBot() {
     // Load configuration
@@ -20,18 +26,21 @@ async function startBot() {
         process.exit(1);
     }
 
-    if (!config.telegram?.bot_token) {
-        logger.error('Telegram bot_token not configured in config.yaml');
+    const pythonServiceUrl = getPythonServiceUrl(config);
+
+    const token = config.telegram?.bot_token;
+    if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
+        logger.error('Telegram bot_token not configured. Set it via the management UI or config.yaml');
+        postAuth(pythonServiceUrl, { status: 'disconnected', error: 'no_token' });
         process.exit(1);
     }
 
-    const pythonServiceUrl = getPythonServiceUrl(config);
     const pythonClient = new PythonServiceClient(pythonServiceUrl);
 
     // Fetch target groups from management server
     let targetGroups: TargetGroup[] = [];
     let targetGroupIds = new Set<string>();
-    let allowDMs = config.telegram.allow_direct_messages ?? false;
+    let allowDMs = config.telegram?.allow_direct_messages ?? false;
 
     try {
         targetGroups = await pythonClient.getTargetGroups('telegram');
@@ -46,13 +55,13 @@ async function startBot() {
     }
 
     // Create bot
-    const bot = new Bot(config.telegram.bot_token);
+    const bot = new Bot(token);
 
     // Create message handler
     const messageHandler = new TelegramMessageHandler(
         bot,
         pythonClient,
-        config.telegram.report_timeout_seconds || 120
+        config.telegram?.report_timeout_seconds || 120
     );
 
     // Handle all message types
@@ -60,14 +69,12 @@ async function startBot() {
         const chat = ctx.message.chat;
         const chatId = String(chat.id);
 
-        // Filter: only process messages from configured groups or DMs
         if (chat.type === 'private') {
             if (!allowDMs) {
                 logger.debug({ chatId, from: ctx.message.from?.first_name }, 'DM ignored (not enabled)');
                 return;
             }
         } else {
-            // Group/supergroup message
             if (targetGroupIds.size > 0 && !targetGroupIds.has(chatId)) {
                 logger.debug({ chatId, chatName: 'title' in chat ? chat.title : chatId }, 'Message from non-target group, skipping');
                 return;
@@ -80,6 +87,7 @@ async function startBot() {
     // Error handler
     bot.catch((err) => {
         logger.error({ error: err.message, stack: err.stack }, 'Bot error');
+        postAuth(pythonServiceUrl, { status: 'auth_failure' });
     });
 
     // Start polling
@@ -87,6 +95,7 @@ async function startBot() {
     bot.start({
         onStart: (info) => {
             logger.info({ username: info.username }, 'Telegram bot is running!');
+            postAuth(pythonServiceUrl, { status: 'authenticated', bot_username: info.username });
         },
     });
 

@@ -1094,6 +1094,31 @@ def stop_service(name):
     return jsonify(result)
 
 
+@app.route('/api/services/<name>/auth', methods=['GET'])
+def get_service_auth(name):
+    return jsonify(service_manager.get_auth(name))
+
+
+@app.route('/api/services/<name>/auth', methods=['POST'])
+def update_service_auth(name):
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data'}), 400
+    service_manager.update_auth(name, data)
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/services/telegram/token', methods=['POST'])
+def save_telegram_token():
+    data = request.get_json()
+    token = data.get('token', '').strip() if data else ''
+    if not token:
+        return jsonify({'error': 'Token is required'}), 400
+    if service_manager.save_telegram_token(token):
+        return jsonify({'status': 'saved'})
+    return jsonify({'error': 'Failed to save token'}), 500
+
+
 @app.route('/api/services/<name>/logs', methods=['GET'])
 def get_service_logs(name):
     lines = request.args.get('lines', 100, type=int)

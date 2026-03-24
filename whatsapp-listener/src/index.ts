@@ -1,9 +1,15 @@
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import * as path from 'path';
+import axios from 'axios';
 
 import { loadConfig, getPythonServiceUrl, logger, PythonServiceClient, Config } from '@gis-bot/shared';
 import { MessageHandler } from './messageHandler';
+
+/** Fire-and-forget POST auth state to management server */
+function postAuth(baseUrl: string, data: Record<string, any>) {
+    axios.post(`${baseUrl}/api/services/whatsapp/auth`, data, { timeout: 3000 }).catch(() => {});
+}
 
 /** Race a promise against a timeout. Rejects with Error on timeout. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -98,13 +104,16 @@ async function startBot(): Promise<Client> {
     }, 90000);
 
     // QR Code display
+    postAuth(pythonServiceUrl, { status: 'waiting_qr' });
+
     client.on('qr', (qr) => {
         startupResolved = true;
         clearTimeout(startupWatchdog);
-        logger.info('Scan the QR code below with your WhatsApp app:');
+        logger.info('QR code received — scan via management UI or below:');
         console.log('\n');
         qrcode.generate(qr, { small: true });
         console.log('\n');
+        postAuth(pythonServiceUrl, { status: 'qr_ready', qr_data: qr });
     });
 
     // Log loading screen progress
@@ -115,15 +124,18 @@ async function startBot(): Promise<Client> {
     // Authentication
     client.on('authenticated', () => {
         logger.info('Authenticated successfully!');
+        postAuth(pythonServiceUrl, { status: 'authenticated' });
     });
 
     client.on('auth_failure', (msg) => {
         logger.error({ msg }, 'Authentication failure');
+        postAuth(pythonServiceUrl, { status: 'auth_failure' });
     });
 
     // Connection
     client.on('ready', async () => {
         startupResolved = true;
+        postAuth(pythonServiceUrl, { status: 'authenticated' });
         clearTimeout(startupWatchdog);
         logger.info('WhatsApp GIS Listener is ready!');
 
@@ -178,6 +190,7 @@ async function startBot(): Promise<Client> {
 
     client.on('disconnected', (reason) => {
         logger.warn({ reason }, 'Disconnected from WhatsApp');
+        postAuth(pythonServiceUrl, { status: 'disconnected' });
     });
 
     // Handle incoming and outgoing messages

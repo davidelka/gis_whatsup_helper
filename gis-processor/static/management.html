@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GIS Bot - Management</title>
     <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         :root {
             --primary-color: #25D366;
@@ -58,7 +59,6 @@
             font-weight: 400;
         }
 
-        /* Service Cards */
         .services-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -70,7 +70,6 @@
             background-color: var(--card-bg);
             border-radius: 12px;
             padding: 20px;
-            position: relative;
         }
 
         .service-header {
@@ -80,10 +79,7 @@
             margin-bottom: 12px;
         }
 
-        .service-name {
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
+        .service-name { font-size: 1.1rem; font-weight: 600; }
 
         .status-badge {
             display: flex;
@@ -104,12 +100,13 @@
         .service-info {
             color: var(--text-dim);
             font-size: 0.85rem;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
 
         .service-actions {
             display: flex;
             gap: 8px;
+            margin-bottom: 12px;
         }
 
         .btn {
@@ -125,18 +122,78 @@
         .btn:hover { opacity: 0.85; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        .btn-start {
+        .btn-start { background-color: var(--primary-color); color: #111; }
+        .btn-stop { background-color: var(--danger); color: #fff; }
+        .btn-logs { background-color: transparent; color: var(--text-dim); border: 1px solid var(--text-dim); }
+
+        /* Auth Section */
+        .auth-section {
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding-top: 12px;
+            margin-top: 4px;
+        }
+
+        .auth-status {
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+        }
+
+        .auth-connected {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .auth-waiting {
+            color: var(--warning);
+        }
+
+        .auth-error {
+            color: var(--danger);
+        }
+
+        .qr-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+
+        .qr-container canvas {
+            max-width: 200px !important;
+            max-height: 200px !important;
+        }
+
+        .qr-hint {
+            color: #333;
+            font-size: 0.8rem;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .token-form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .token-form input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--text-dim);
+            background-color: var(--panel-bg);
+            color: var(--text-main);
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+
+        .btn-save {
             background-color: var(--primary-color);
             color: #111;
-        }
-        .btn-stop {
-            background-color: var(--danger);
-            color: #fff;
-        }
-        .btn-logs {
-            background-color: transparent;
-            color: var(--text-dim);
-            border: 1px solid var(--text-dim);
         }
 
         /* Groups Section */
@@ -171,10 +228,7 @@
             overflow: hidden;
         }
 
-        .groups-table th, .groups-table td {
-            padding: 12px 16px;
-            text-align: right;
-        }
+        .groups-table th, .groups-table td { padding: 12px 16px; text-align: right; }
 
         .groups-table th {
             background-color: rgba(0,0,0,0.2);
@@ -188,107 +242,61 @@
             font-size: 0.9rem;
         }
 
-        .toggle {
-            position: relative;
-            width: 44px;
-            height: 24px;
-            display: inline-block;
-        }
+        .toggle { position: relative; width: 44px; height: 24px; display: inline-block; }
         .toggle input { display: none; }
         .toggle .slider {
-            position: absolute;
-            inset: 0;
-            background-color: #555;
-            border-radius: 24px;
-            cursor: pointer;
-            transition: 0.3s;
+            position: absolute; inset: 0;
+            background-color: #555; border-radius: 24px; cursor: pointer; transition: 0.3s;
         }
         .toggle .slider::before {
-            content: '';
-            position: absolute;
-            width: 18px;
-            height: 18px;
-            right: 3px;
-            bottom: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: 0.3s;
+            content: ''; position: absolute;
+            width: 18px; height: 18px; right: 3px; bottom: 3px;
+            background: white; border-radius: 50%; transition: 0.3s;
         }
         .toggle input:checked + .slider { background-color: var(--primary-color); }
         .toggle input:checked + .slider::before { transform: translateX(-20px); }
 
         .btn-delete {
-            background: none;
-            border: none;
-            color: var(--danger);
-            cursor: pointer;
-            font-size: 1.1rem;
-            padding: 4px;
+            background: none; border: none; color: var(--danger);
+            cursor: pointer; font-size: 1.1rem; padding: 4px;
         }
 
-        /* Add Group Form */
         .add-group-form {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-top: 12px;
-            flex-wrap: wrap;
+            display: flex; gap: 8px; align-items: center;
+            margin-top: 12px; flex-wrap: wrap;
         }
 
         .add-group-form input, .add-group-form select {
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 8px 12px; border-radius: 8px;
             border: 1px solid var(--text-dim);
             background-color: var(--panel-bg);
             color: var(--text-main);
-            font-family: inherit;
-            font-size: 0.9rem;
+            font-family: inherit; font-size: 0.9rem;
         }
 
         .add-group-form input { flex: 1; min-width: 120px; }
-
-        .btn-add {
-            background-color: var(--primary-color);
-            color: #111;
-        }
+        .btn-add { background-color: var(--primary-color); color: #111; }
 
         .dm-label {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            color: var(--text-dim);
-            font-size: 0.85rem;
+            display: flex; align-items: center; gap: 4px;
+            color: var(--text-dim); font-size: 0.85rem;
         }
 
-        /* Log Viewer */
         .log-viewer {
-            background-color: #0d1117;
-            border-radius: 12px;
-            padding: 16px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.8rem;
-            color: #c9d1d9;
-            white-space: pre-wrap;
-            word-break: break-all;
+            background-color: #0d1117; border-radius: 12px; padding: 16px;
+            max-height: 300px; overflow-y: auto;
+            font-family: 'Courier New', monospace; font-size: 0.8rem;
+            color: #c9d1d9; white-space: pre-wrap; word-break: break-all;
             display: none;
         }
         .log-viewer.visible { display: block; }
 
         .notification {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--card-bg);
-            color: var(--text-main);
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            z-index: 9999;
-            display: none;
-            font-size: 0.9rem;
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background-color: var(--card-bg); color: var(--text-main);
+            padding: 12px 24px; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 9999;
+            display: none; font-size: 0.9rem;
         }
         .notification.show { display: block; }
 
@@ -305,14 +313,11 @@
     </header>
 
     <div class="container">
-        <!-- Services -->
         <h2>Services</h2>
         <div class="services-grid" id="services-grid"></div>
 
-        <!-- Log Viewer -->
         <div class="log-viewer" id="log-viewer"></div>
 
-        <!-- Groups -->
         <h2>Groups Configuration</h2>
         <div class="groups-section">
             <div class="tabs">
@@ -321,23 +326,14 @@
             </div>
             <table class="groups-table">
                 <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Group ID</th>
-                        <th>Active</th>
-                        <th>DM</th>
-                        <th></th>
-                    </tr>
+                    <tr><th>Name</th><th>Group ID</th><th>Active</th><th>DM</th><th></th></tr>
                 </thead>
                 <tbody id="groups-body"></tbody>
             </table>
-
-            <div class="add-group-form" id="add-group-form">
+            <div class="add-group-form">
                 <input type="text" id="new-group-name" placeholder="Group Name">
                 <input type="text" id="new-group-id" placeholder="Group ID">
-                <label class="dm-label">
-                    <input type="checkbox" id="new-group-dm"> DM
-                </label>
+                <label class="dm-label"><input type="checkbox" id="new-group-dm"> DM</label>
                 <button class="btn btn-add" onclick="addGroup()">Add</button>
             </div>
         </div>
@@ -349,6 +345,8 @@
         let currentPlatform = 'whatsapp';
         let activeLogService = null;
         let logInterval = null;
+        let authStates = {};
+        let lastQrData = null;
 
         // ===== Services =====
         async function loadServices() {
@@ -367,6 +365,15 @@
                 const running = svc.running;
                 const uptime = running ? formatUptime(svc.uptime_seconds) : '';
                 const pidText = running ? `PID: ${svc.pid}` : '';
+                const auth = authStates[svc.service] || {};
+
+                let authHtml = '';
+                if (svc.service === 'whatsapp') {
+                    authHtml = renderWhatsAppAuth(running, auth);
+                } else if (svc.service === 'telegram') {
+                    authHtml = renderTelegramAuth(running, auth);
+                }
+
                 return `
                     <div class="service-card">
                         <div class="service-header">
@@ -384,9 +391,110 @@
                             }
                             <button class="btn btn-logs" onclick="toggleLogs('${svc.service}')">Logs</button>
                         </div>
+                        ${authHtml}
                     </div>
                 `;
             }).join('');
+
+            // Render QR code if needed
+            renderQrCode();
+        }
+
+        function renderWhatsAppAuth(running, auth) {
+            if (!running) return '<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Not running</div></div>';
+
+            const status = auth.status || 'disconnected';
+
+            if (status === 'authenticated') {
+                return `<div class="auth-section"><div class="auth-status auth-connected">Connected</div></div>`;
+            }
+            if (status === 'qr_ready') {
+                return `
+                    <div class="auth-section">
+                        <div class="auth-status auth-waiting">Scan QR code with WhatsApp:</div>
+                        <div class="qr-container"><canvas id="qr-canvas"></canvas><div class="qr-hint">Open WhatsApp > Settings > Linked Devices > Link a Device</div></div>
+                    </div>`;
+            }
+            if (status === 'waiting_qr') {
+                return `<div class="auth-section"><div class="auth-status auth-waiting">Starting... waiting for QR code</div></div>`;
+            }
+            if (status === 'auth_failure') {
+                return `<div class="auth-section"><div class="auth-status auth-error">Authentication failed - restart to retry</div></div>`;
+            }
+            return `<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Connecting...</div></div>`;
+        }
+
+        function renderTelegramAuth(running, auth) {
+            const status = auth.status || 'disconnected';
+            const username = auth.bot_username || '';
+
+            let statusHtml = '';
+            if (running && status === 'authenticated' && username) {
+                statusHtml = `<div class="auth-status auth-connected">Connected as @${username}</div>`;
+            } else if (running && status === 'auth_failure') {
+                statusHtml = `<div class="auth-status auth-error">Connection failed - check token</div>`;
+            } else if (running) {
+                statusHtml = `<div class="auth-status auth-waiting">Connecting...</div>`;
+            }
+
+            return `
+                <div class="auth-section">
+                    ${statusHtml}
+                    <div class="token-form">
+                        <input type="text" id="tg-token-input" placeholder="Bot token from @BotFather" value="">
+                        <button class="btn btn-save" onclick="saveTelegramToken()">Save</button>
+                    </div>
+                </div>`;
+        }
+
+        function renderQrCode() {
+            const canvas = document.getElementById('qr-canvas');
+            const auth = authStates['whatsapp'] || {};
+            if (canvas && auth.qr_data && auth.status === 'qr_ready') {
+                if (auth.qr_data !== lastQrData) {
+                    lastQrData = auth.qr_data;
+                    QRCode.toCanvas(canvas, auth.qr_data, {
+                        width: 200,
+                        margin: 1,
+                        color: { dark: '#000', light: '#fff' }
+                    });
+                }
+            } else {
+                lastQrData = null;
+            }
+        }
+
+        async function saveTelegramToken() {
+            const input = document.getElementById('tg-token-input');
+            const token = input ? input.value.trim() : '';
+            if (!token) { notify('Enter a bot token', true); return; }
+
+            try {
+                const res = await fetch('/api/services/telegram/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    notify(data.error, true);
+                } else {
+                    notify('Token saved. Start the Telegram service to connect.');
+                    input.value = '';
+                }
+            } catch (e) {
+                notify('Failed to save token', true);
+            }
+        }
+
+        // ===== Auth Polling =====
+        async function pollAuth() {
+            for (const name of ['whatsapp', 'telegram']) {
+                try {
+                    const res = await fetch(`/api/services/${name}/auth`);
+                    authStates[name] = await res.json();
+                } catch (e) { /* ignore */ }
+            }
         }
 
         function formatUptime(seconds) {
@@ -403,15 +511,9 @@
             try {
                 const res = await fetch(`/api/services/${name}/start`, { method: 'POST' });
                 const data = await res.json();
-                if (data.error) {
-                    notify(data.error, true);
-                } else {
-                    notify(`${data.name} started`);
-                }
+                if (data.error) { notify(data.error, true); } else { notify(`${data.name} started`); }
                 loadServices();
-            } catch (e) {
-                notify('Failed to start service', true);
-            }
+            } catch (e) { notify('Failed to start service', true); }
         }
 
         async function stopService(name) {
@@ -420,9 +522,7 @@
                 const data = await res.json();
                 notify(`${data.name} stopped`);
                 loadServices();
-            } catch (e) {
-                notify('Failed to stop service', true);
-            }
+            } catch (e) { notify('Failed to stop service', true); }
         }
 
         async function toggleLogs(name) {
@@ -457,9 +557,7 @@
                 const res = await fetch(`/api/groups?platform=${currentPlatform}`);
                 const data = await res.json();
                 renderGroups(data.groups);
-            } catch (e) {
-                console.error('Failed to load groups:', e);
-            }
+            } catch (e) { console.error('Failed to load groups:', e); }
         }
 
         function renderGroups(groups) {
@@ -498,10 +596,7 @@
                     body: JSON.stringify({ is_active: active })
                 });
                 notify(active ? 'Group activated' : 'Group deactivated');
-            } catch (e) {
-                notify('Failed to update group', true);
-                loadGroups();
-            }
+            } catch (e) { notify('Failed to update group', true); loadGroups(); }
         }
 
         async function deleteGroup(id) {
@@ -510,48 +605,32 @@
                 await fetch(`/api/groups/${id}`, { method: 'DELETE' });
                 notify('Group deleted');
                 loadGroups();
-            } catch (e) {
-                notify('Failed to delete group', true);
-            }
+            } catch (e) { notify('Failed to delete group', true); }
         }
 
         async function addGroup() {
             const name = document.getElementById('new-group-name').value.trim();
             const groupId = document.getElementById('new-group-id').value.trim();
             const isDm = document.getElementById('new-group-dm').checked;
-
-            if (!groupId) {
-                notify('Group ID is required', true);
-                return;
-            }
+            if (!groupId) { notify('Group ID is required', true); return; }
 
             try {
                 const res = await fetch('/api/groups', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        platform: currentPlatform,
-                        group_id: groupId,
-                        group_name: name,
-                        is_dm: isDm,
-                    })
+                    body: JSON.stringify({ platform: currentPlatform, group_id: groupId, group_name: name, is_dm: isDm })
                 });
                 const data = await res.json();
-                if (data.error) {
-                    notify(data.error, true);
-                } else {
+                if (data.error) { notify(data.error, true); } else {
                     notify('Group added');
                     document.getElementById('new-group-name').value = '';
                     document.getElementById('new-group-id').value = '';
                     document.getElementById('new-group-dm').checked = false;
                     loadGroups();
                 }
-            } catch (e) {
-                notify('Failed to add group', true);
-            }
+            } catch (e) { notify('Failed to add group', true); }
         }
 
-        // ===== Notifications =====
         function notify(msg, isError = false) {
             const el = document.getElementById('notification');
             el.textContent = msg;
@@ -561,9 +640,17 @@
         }
 
         // ===== Init =====
-        loadServices();
-        loadGroups();
-        setInterval(loadServices, 5000);
+        async function init() {
+            await pollAuth();
+            loadServices();
+            loadGroups();
+            // Poll auth every 2s (QR codes expire fast), services every 5s
+            setInterval(async () => {
+                await pollAuth();
+                loadServices();
+            }, 2000);
+        }
+        init();
     </script>
 </body>
 </html>
