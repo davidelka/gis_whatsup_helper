@@ -3,6 +3,7 @@ import axios from 'axios';
 import {
     loadConfig,
     getPythonServiceUrl,
+    getTelegramToken,
     logger,
     PythonServiceClient,
     Config,
@@ -28,9 +29,9 @@ async function startBot() {
 
     const pythonServiceUrl = getPythonServiceUrl(config);
 
-    const token = config.telegram?.bot_token;
+    const token = getTelegramToken();
     if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
-        logger.error('Telegram bot_token not configured. Set it via the management UI or config.yaml');
+        logger.error('TELEGRAM_BOT_TOKEN not set. Set it via the management UI or .env file');
         postAuth(pythonServiceUrl, { status: 'disconnected', error: 'no_token' });
         process.exit(1);
     }

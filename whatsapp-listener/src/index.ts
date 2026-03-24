@@ -42,12 +42,7 @@ async function startBot(): Promise<Client> {
         targetGroups = new Set(groups.filter(g => g.is_active).map(g => g.group_id));
         logger.info({ groupCount: targetGroups.size, groups: groups.map(g => g.group_name) }, 'Target groups loaded from management server');
     } catch (error: any) {
-        logger.warn({ error: error.message }, 'Could not fetch groups from management server, falling back to config.yaml');
-        // Fallback to config.yaml groups
-        if (config.whatsapp.target_groups) {
-            targetGroups = new Set(config.whatsapp.target_groups.map(g => g.id));
-            logger.info({ groupCount: targetGroups.size }, 'Using config.yaml target groups as fallback');
-        }
+        logger.warn({ error: error.message }, 'Could not fetch groups from management server. No group filtering active.');
     }
 
     // Create message handler

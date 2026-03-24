@@ -1,19 +1,7 @@
 whatsapp:
   report_timeout_seconds: 120
-  # Legacy target_groups - migrated to database on first run
-  # New groups should be added via the management UI at /management
-  target_groups:
-    - name: "ניסוי"
-      id: "120363424895032057@g.us"
-    - name: "דקירות פארן"
-      id: "120363404243096973@g.us"
-    - name: "עקבות פארן"
-      id: "120363406931200969@g.us"
-    - name: "לז עזוז"
-      id: "120363406827366979@g.us"
 
 telegram:
-  bot_token: "YOUR_BOT_TOKEN_HERE"  # Get from @BotFather on Telegram
   report_timeout_seconds: 120
   allow_direct_messages: true
 
@@ -26,4 +14,4 @@ storage:
   export_dir: "./exports"
 
 logging:
-  level: "info"  # debug, info, warn, error
+  level: "info"

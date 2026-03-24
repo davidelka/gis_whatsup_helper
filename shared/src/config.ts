@@ -23,11 +23,9 @@ export interface LoggingConfig {
 
 export interface WhatsAppConfig {
     report_timeout_seconds: number;
-    target_groups: GroupConfig[];  // Legacy, migrated to DB on first run
 }
 
 export interface TelegramConfig {
-    bot_token: string;
     report_timeout_seconds: number;
     allow_direct_messages: boolean;
 }
@@ -41,12 +39,11 @@ export interface Config {
 }
 
 function findConfigFile(): string {
-    // Try multiple paths to find config.yaml
     const candidates = [
-        path.resolve(process.cwd(), '../config.yaml'),   // From listener dirs
-        path.resolve(process.cwd(), 'config.yaml'),      // From project root
-        path.resolve(__dirname, '../../../config.yaml'),  // From shared/dist or shared/src
-        path.resolve(__dirname, '../../config.yaml'),     // Fallback
+        path.resolve(process.cwd(), '../config.yaml'),
+        path.resolve(process.cwd(), 'config.yaml'),
+        path.resolve(__dirname, '../../../config.yaml'),
+        path.resolve(__dirname, '../../config.yaml'),
     ];
     for (const candidate of candidates) {
         if (fs.existsSync(candidate)) return candidate;
@@ -54,7 +51,47 @@ function findConfigFile(): string {
     throw new Error(`Config file not found. Tried: ${candidates.join(', ')}`);
 }
 
+function findEnvFile(): string | null {
+    const candidates = [
+        path.resolve(process.cwd(), '../.env'),
+        path.resolve(process.cwd(), '.env'),
+        path.resolve(__dirname, '../../../.env'),
+        path.resolve(__dirname, '../../.env'),
+    ];
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) return candidate;
+    }
+    return null;
+}
+
+/** Load .env file into process.env (simple parser, no dependency needed) */
+function loadEnvFile() {
+    const envPath = findEnvFile();
+    if (!envPath) return;
+
+    const content = fs.readFileSync(envPath, 'utf8');
+    for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex === -1) continue;
+        const key = trimmed.substring(0, eqIndex).trim();
+        let value = trimmed.substring(eqIndex + 1).trim();
+        // Strip surrounding quotes
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+        }
+        if (!process.env[key]) {
+            process.env[key] = value;
+        }
+    }
+}
+
 export function loadConfig(configDir?: string): Config {
+    // Load .env first so env vars are available
+    loadEnvFile();
+
     const configPath = configDir
         ? path.resolve(configDir, 'config.yaml')
         : findConfigFile();
@@ -67,6 +104,10 @@ export function loadConfig(configDir?: string): Config {
     const config = yaml.load(configContent) as Config;
 
     return config;
+}
+
+export function getTelegramToken(): string | undefined {
+    return process.env.TELEGRAM_BOT_TOKEN;
 }
 
 export function getPythonServiceUrl(config: Config): string {

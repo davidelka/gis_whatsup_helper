@@ -7,7 +7,6 @@ import signal
 import subprocess
 import time
 import logging
-import yaml
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -173,17 +172,28 @@ class ServiceManager:
         return self.auth_states.get(service_name, {'status': 'disconnected'})
 
     def save_telegram_token(self, token: str) -> bool:
-        config_path = os.path.join(self.project_root, 'config.yaml')
+        env_path = os.path.join(self.project_root, '.env')
         try:
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
+            # Read existing .env lines
+            lines = []
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    lines = f.readlines()
 
-            if 'telegram' not in config:
-                config['telegram'] = {}
-            config['telegram']['bot_token'] = token
+            # Replace or append TELEGRAM_BOT_TOKEN
+            found = False
+            new_lines = []
+            for line in lines:
+                if line.strip().startswith('TELEGRAM_BOT_TOKEN='):
+                    new_lines.append(f'TELEGRAM_BOT_TOKEN={token}\n')
+                    found = True
+                else:
+                    new_lines.append(line)
+            if not found:
+                new_lines.append(f'TELEGRAM_BOT_TOKEN={token}\n')
 
-            with open(config_path, 'w') as f:
-                yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+            with open(env_path, 'w') as f:
+                f.writelines(new_lines)
 
             return True
         except Exception as e:
@@ -210,7 +220,7 @@ class ServiceManager:
                 cleared.append('.wwebjs_cache')
 
         elif service_name == 'telegram':
-            # Clear bot token from config
+            # Clear bot token from .env
             self.save_telegram_token('YOUR_BOT_TOKEN_HERE')
             cleared.append('bot_token')
 
