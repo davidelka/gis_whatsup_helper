@@ -151,28 +151,63 @@
             color: var(--danger);
         }
 
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.visible { display: flex; }
+
+        .modal {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            max-width: 360px;
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+            font-size: 1.1rem;
+        }
+
         .qr-container {
-            display: flex;
+            display: inline-flex;
             flex-direction: column;
             align-items: center;
-            padding: 12px;
+            padding: 16px;
             background: white;
-            border-radius: 8px;
-            margin: 8px 0;
-            max-width: 220px;
+            border-radius: 12px;
         }
 
         .qr-container canvas {
-            width: 180px !important;
-            height: 180px !important;
+            width: 250px !important;
+            height: 250px !important;
         }
 
         .qr-hint {
             color: #333;
             font-size: 0.8rem;
-            margin-top: 8px;
+            margin-top: 10px;
             text-align: center;
         }
+
+        .modal-close {
+            margin-top: 16px;
+            background: transparent;
+            border: 1px solid var(--text-dim);
+            color: var(--text-dim);
+            padding: 8px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .modal-close:hover { color: var(--text-main); border-color: var(--text-main); }
 
         .token-form {
             display: flex;
@@ -344,6 +379,17 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="qr-modal" onclick="closeQrModal(event)">
+        <div class="modal">
+            <h3>Scan QR with WhatsApp</h3>
+            <div class="qr-container"><canvas id="qr-canvas"></canvas>
+                <div class="qr-hint">WhatsApp > Settings > Linked Devices > Link a Device</div>
+            </div>
+            <br>
+            <button class="modal-close" onclick="document.getElementById('qr-modal').classList.remove('visible')">Close</button>
+        </div>
+    </div>
+
     <div class="notification" id="notification"></div>
 
     <script>
@@ -418,8 +464,8 @@
             if (status === 'qr_ready') {
                 return `
                     <div class="auth-section">
-                        <div class="auth-status auth-waiting">Scan QR code with WhatsApp:</div>
-                        <div class="qr-container"><canvas id="qr-canvas"></canvas><div class="qr-hint">Open WhatsApp > Settings > Linked Devices > Link a Device</div></div>
+                        <div class="auth-status auth-waiting">QR code ready</div>
+                        <button class="btn btn-start" style="margin-top:8px" onclick="openQrModal()">Scan QR Code</button>
                         ${disconnectBtn}
                     </div>`;
             }
@@ -456,18 +502,33 @@
                 </div>`;
         }
 
-        function renderQrCode() {
+        function openQrModal() {
+            document.getElementById('qr-modal').classList.add('visible');
+            renderQrCode(true);
+        }
+
+        function closeQrModal(e) {
+            if (e.target === e.currentTarget) {
+                document.getElementById('qr-modal').classList.remove('visible');
+            }
+        }
+
+        function renderQrCode(force = false) {
             const canvas = document.getElementById('qr-canvas');
             const auth = authStates['whatsapp'] || {};
             if (canvas && auth.qr_data && auth.status === 'qr_ready') {
-                if (auth.qr_data !== lastQrData) {
+                if (auth.qr_data !== lastQrData || force) {
                     lastQrData = auth.qr_data;
                     QRCode.toCanvas(canvas, auth.qr_data, {
-                        width: 180,
+                        width: 250,
                         margin: 1,
                         color: { dark: '#000', light: '#fff' }
                     });
                 }
+            } else if (auth.status === 'authenticated') {
+                // Auto-close modal when authenticated
+                document.getElementById('qr-modal').classList.remove('visible');
+                lastQrData = null;
             } else {
                 lastQrData = null;
             }
