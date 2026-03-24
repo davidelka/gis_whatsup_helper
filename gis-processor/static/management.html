@@ -3,402 +3,603 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GIS Bot - Management</title>
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600&display=swap" rel="stylesheet">
+    <title>GIS Bot - Operations Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <style>
         :root {
-            --primary-color: #25D366;
-            --secondary-color: #075E54;
-            --dark-bg: #111b21;
-            --panel-bg: #202c33;
-            --card-bg: #2a3942;
-            --text-main: #e9edef;
-            --text-dim: #8696a0;
-            --danger: #e74c3c;
-            --warning: #f39c12;
+            --bg-deep: #0a0e14;
+            --bg-surface: #111820;
+            --bg-card: #161d27;
+            --bg-elevated: #1c2533;
+            --border: rgba(56, 189, 126, 0.12);
+            --border-strong: rgba(56, 189, 126, 0.25);
+            --accent: #38bd7e;
+            --accent-glow: rgba(56, 189, 126, 0.4);
+            --accent-dim: rgba(56, 189, 126, 0.15);
+            --danger: #ef4444;
+            --danger-dim: rgba(239, 68, 68, 0.15);
+            --warning: #f59e0b;
+            --warning-dim: rgba(245, 158, 11, 0.12);
+            --text: #e2e8f0;
+            --text-secondary: #8899aa;
+            --text-muted: #556677;
+            --topo-line: rgba(56, 189, 126, 0.04);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'Assistant', sans-serif;
-            background-color: var(--dark-bg);
-            color: var(--text-main);
+            font-family: 'IBM Plex Sans Hebrew', 'IBM Plex Sans', sans-serif;
+            background-color: var(--bg-deep);
+            color: var(--text);
             min-height: 100vh;
+            background-image:
+                repeating-linear-gradient(0deg, var(--topo-line) 0px, var(--topo-line) 1px, transparent 1px, transparent 40px),
+                repeating-linear-gradient(90deg, var(--topo-line) 0px, var(--topo-line) 1px, transparent 1px, transparent 40px);
         }
 
-        header {
-            background-color: var(--secondary-color);
-            padding: 16px 24px;
+        /* ===== Header ===== */
+        .header {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            height: 56px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        header h1 { font-size: 1.3rem; font-weight: 600; }
-
-        header a {
-            color: var(--text-main);
-            text-decoration: none;
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-        header a:hover { opacity: 1; }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 24px;
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        h2 {
-            font-size: 1.1rem;
-            color: var(--text-dim);
-            margin-bottom: 16px;
+        .header-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), #2a9d6a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        .header-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+
+        .header-title span {
+            color: var(--text-muted);
             font-weight: 400;
+            font-size: 0.8rem;
+            margin-right: 8px;
         }
 
+        .header-nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.82rem;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .header-nav a:hover {
+            color: var(--accent);
+            border-color: var(--border);
+            background: var(--accent-dim);
+        }
+
+        /* ===== Layout ===== */
+        .main {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 28px 32px 48px;
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ===== Service Cards ===== */
         .services-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
-            margin-bottom: 32px;
+            margin-bottom: 28px;
         }
 
-        .service-card {
-            background-color: var(--card-bg);
+        .svc-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: 12px;
             padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.3s;
+        }
+        .svc-card:hover { border-color: var(--border-strong); }
+        .svc-card.is-running { border-color: rgba(56, 189, 126, 0.2); }
+        .svc-card.is-running::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 100px; height: 100px;
+            background: radial-gradient(circle at top right, var(--accent-glow), transparent 70%);
+            pointer-events: none;
         }
 
-        .service-header {
+        .svc-top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
 
-        .service-name { font-size: 1.1rem; font-weight: 600; }
+        .svc-name {
+            font-size: 1rem;
+            font-weight: 600;
+        }
 
-        .status-badge {
+        .svc-status {
             display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 0.85rem;
+            gap: 7px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
         }
 
-        .status-dot {
-            width: 10px;
-            height: 10px;
+        .status-indicator {
+            width: 8px; height: 8px;
             border-radius: 50%;
-            display: inline-block;
         }
-        .status-dot.running { background-color: var(--primary-color); box-shadow: 0 0 6px var(--primary-color); }
-        .status-dot.stopped { background-color: var(--danger); }
+        .status-indicator.on {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow), 0 0 2px var(--accent);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .status-indicator.off { background: var(--text-muted); }
 
-        .service-info {
-            color: var(--text-dim);
-            font-size: 0.85rem;
-            margin-bottom: 12px;
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
-        .service-actions {
+        .svc-meta {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            min-height: 18px;
+        }
+
+        .svc-actions {
             display: flex;
             gap: 8px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
 
+        /* ===== Buttons ===== */
         .btn {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 8px;
+            font-family: 'IBM Plex Sans Hebrew', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 7px 18px;
+            border: 1px solid transparent;
+            border-radius: 7px;
             cursor: pointer;
-            font-family: inherit;
-            font-size: 0.9rem;
-            font-weight: 600;
-            transition: opacity 0.2s;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
-        .btn:hover { opacity: 0.85; }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
 
-        .btn-start { background-color: var(--primary-color); color: #111; }
-        .btn-stop { background-color: var(--danger); color: #fff; }
-        .btn-logs { background-color: transparent; color: var(--text-dim); border: 1px solid var(--text-dim); }
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-deep);
+            border-color: var(--accent);
+        }
+        .btn-primary:hover { box-shadow: 0 4px 14px var(--accent-glow); }
 
-        /* Auth Section */
-        .auth-section {
-            border-top: 1px solid rgba(255,255,255,0.08);
-            padding-top: 12px;
-            margin-top: 4px;
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+            border-color: var(--danger);
+        }
+        .btn-danger:hover { box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3); }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border-strong);
+        }
+        .btn-ghost:hover { background: var(--bg-elevated); color: var(--text); }
+
+        .btn-ghost-danger {
+            background: transparent;
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.3);
+            font-size: 0.75rem;
+        }
+        .btn-ghost-danger:hover { background: var(--danger-dim); }
+
+        .btn-sm { padding: 5px 12px; font-size: 0.75rem; }
+
+        /* ===== Auth Section ===== */
+        .auth-area {
+            border-top: 1px solid var(--border);
+            padding-top: 14px;
         }
 
-        .auth-status {
-            font-size: 0.85rem;
+        .auth-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: 20px;
             margin-bottom: 8px;
         }
+        .auth-badge.connected { background: var(--accent-dim); color: var(--accent); }
+        .auth-badge.waiting { background: var(--warning-dim); color: var(--warning); }
+        .auth-badge.error { background: var(--danger-dim); color: var(--danger); }
+        .auth-badge.idle { background: rgba(85, 102, 119, 0.15); color: var(--text-muted); }
 
-        .auth-connected {
-            color: var(--primary-color);
-            font-weight: 600;
+        .token-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 10px;
         }
 
-        .auth-waiting {
-            color: var(--warning);
+        .token-input {
+            flex: 1;
+            padding: 7px 12px;
+            border-radius: 7px;
+            border: 1px solid var(--border-strong);
+            background: var(--bg-surface);
+            color: var(--text);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.78rem;
+            transition: border-color 0.2s;
         }
+        .token-input:focus { outline: none; border-color: var(--accent); }
 
-        .auth-error {
-            color: var(--danger);
-        }
+        .auth-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 
+        /* ===== QR Modal ===== */
         .modal-overlay {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
             z-index: 10000;
             align-items: center;
             justify-content: center;
         }
         .modal-overlay.visible { display: flex; }
 
-        .modal {
-            background: var(--card-bg);
+        .modal-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-strong);
             border-radius: 16px;
-            padding: 32px;
+            padding: 32px 36px;
             text-align: center;
-            max-width: 360px;
+            max-width: 380px;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.5);
+            animation: modalIn 0.25s ease-out;
+        }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(8px); } to { opacity: 1; transform: none; } }
+
+        .modal-box h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 18px;
         }
 
-        .modal h3 {
-            margin-bottom: 16px;
-            font-size: 1.1rem;
-        }
-
-        .qr-container {
+        .qr-frame {
             display: inline-flex;
             flex-direction: column;
             align-items: center;
-            padding: 16px;
-            background: white;
-            border-radius: 12px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 14px;
         }
 
-        .qr-container img {
-            width: 250px;
-            height: 250px;
+        .qr-frame img {
+            width: 240px;
+            height: 240px;
             image-rendering: pixelated;
         }
 
         .qr-hint {
-            color: #333;
-            font-size: 0.8rem;
+            color: #667;
+            font-size: 0.75rem;
             margin-top: 10px;
-            text-align: center;
         }
 
-        .modal-close {
-            margin-top: 16px;
-            background: transparent;
-            border: 1px solid var(--text-dim);
-            color: var(--text-dim);
-            padding: 8px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-family: inherit;
-            font-size: 0.9rem;
-        }
-        .modal-close:hover { color: var(--text-main); border-color: var(--text-main); }
-
-        .token-form {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-top: 8px;
-        }
-
-        .token-form input {
-            flex: 1;
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--text-dim);
-            background-color: var(--panel-bg);
-            color: var(--text-main);
-            font-family: monospace;
-            font-size: 0.85rem;
-        }
-
-        .btn-save {
-            background-color: var(--primary-color);
-            color: #111;
-        }
-
-        /* Groups Section */
-        .groups-section { margin-bottom: 32px; }
-
-        .tabs {
+        /* ===== Tabs ===== */
+        .tab-bar {
             display: flex;
             gap: 0;
+            border-bottom: 1px solid var(--border);
             margin-bottom: 16px;
-            border-bottom: 2px solid var(--card-bg);
         }
 
-        .tab {
-            padding: 10px 20px;
+        .tab-item {
+            padding: 10px 22px;
             cursor: pointer;
-            color: var(--text-dim);
-            font-weight: 600;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-muted);
             border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            transition: color 0.2s;
+            margin-bottom: -1px;
+            transition: all 0.2s;
         }
-        .tab.active {
-            color: var(--primary-color);
-            border-bottom-color: var(--primary-color);
-        }
+        .tab-item:hover { color: var(--text-secondary); }
+        .tab-item.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-        .groups-table {
+        /* ===== Table ===== */
+        .data-table {
             width: 100%;
             border-collapse: collapse;
-            background-color: var(--card-bg);
-            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
             overflow: hidden;
         }
 
-        .groups-table th, .groups-table td { padding: 12px 16px; text-align: right; }
+        .data-table th {
+            background: var(--bg-elevated);
+            padding: 10px 16px;
+            text-align: right;
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+        }
 
-        .groups-table th {
-            background-color: rgba(0,0,0,0.2);
-            color: var(--text-dim);
-            font-weight: 600;
+        .data-table td {
+            padding: 11px 16px;
+            border-top: 1px solid var(--border);
             font-size: 0.85rem;
         }
 
-        .groups-table td {
-            border-top: 1px solid rgba(255,255,255,0.05);
-            font-size: 0.9rem;
-        }
+        .mono { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--text-secondary); }
 
-        .toggle { position: relative; width: 44px; height: 24px; display: inline-block; }
+        .toggle { position: relative; width: 40px; height: 22px; display: inline-block; }
         .toggle input { display: none; }
         .toggle .slider {
             position: absolute; inset: 0;
-            background-color: #555; border-radius: 24px; cursor: pointer; transition: 0.3s;
+            background: var(--text-muted); border-radius: 22px; cursor: pointer; transition: 0.3s;
         }
         .toggle .slider::before {
             content: ''; position: absolute;
-            width: 18px; height: 18px; right: 3px; bottom: 3px;
+            width: 16px; height: 16px; right: 3px; bottom: 3px;
             background: white; border-radius: 50%; transition: 0.3s;
         }
-        .toggle input:checked + .slider { background-color: var(--primary-color); }
-        .toggle input:checked + .slider::before { transform: translateX(-20px); }
+        .toggle input:checked + .slider { background: var(--accent); }
+        .toggle input:checked + .slider::before { transform: translateX(-18px); }
 
-        .btn-delete {
-            background: none; border: none; color: var(--danger);
-            cursor: pointer; font-size: 1.1rem; padding: 4px;
+        .btn-icon-delete {
+            background: none; border: none; color: var(--text-muted);
+            cursor: pointer; font-size: 1rem; padding: 2px 6px;
+            border-radius: 4px; transition: all 0.2s;
+        }
+        .btn-icon-delete:hover { color: var(--danger); background: var(--danger-dim); }
+
+        /* ===== Discovered Groups ===== */
+        .discovery-area {
+            margin-top: 16px;
         }
 
-        .add-group-form {
-            display: flex; gap: 8px; align-items: center;
-            margin-top: 12px; flex-wrap: wrap;
+        .discovery-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
         }
 
-        .add-group-form input, .add-group-form select {
-            padding: 8px 12px; border-radius: 8px;
-            border: 1px solid var(--text-dim);
-            background-color: var(--panel-bg);
-            color: var(--text-main);
-            font-family: inherit; font-size: 0.9rem;
+        .discovery-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 32px;
         }
 
-        .add-group-form input { flex: 1; min-width: 120px; }
-        .btn-add { background-color: var(--primary-color); color: #111; }
+        .chip {
+            font-family: 'IBM Plex Sans Hebrew', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 5px 14px;
+            border-radius: 20px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--border-strong);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .chip:hover { background: rgba(56, 189, 126, 0.25); box-shadow: 0 2px 8px var(--accent-glow); transform: translateY(-1px); }
 
-        .dm-label {
-            display: flex; align-items: center; gap: 4px;
-            color: var(--text-dim); font-size: 0.85rem;
+        .discovery-empty {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-style: italic;
         }
 
+        /* ===== Manual Add Form ===== */
+        .add-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+
+        .add-row input {
+            flex: 1;
+            min-width: 120px;
+            padding: 7px 12px;
+            border-radius: 7px;
+            border: 1px solid var(--border-strong);
+            background: var(--bg-surface);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.82rem;
+            transition: border-color 0.2s;
+        }
+        .add-row input:focus { outline: none; border-color: var(--accent); }
+
+        .dm-check {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        /* ===== Log Viewer ===== */
         .log-viewer {
-            background-color: #0d1117; border-radius: 12px; padding: 16px;
-            max-height: 300px; overflow-y: auto;
-            font-family: 'Courier New', monospace; font-size: 0.8rem;
-            color: #c9d1d9; white-space: pre-wrap; word-break: break-all;
+            background: var(--bg-deep);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            max-height: 280px;
+            overflow-y: auto;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-all;
             display: none;
+            margin-bottom: 24px;
         }
         .log-viewer.visible { display: block; }
 
-        .notification {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background-color: var(--card-bg); color: var(--text-main);
-            padding: 12px 24px; border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 9999;
-            display: none; font-size: 0.9rem;
+        /* ===== Notification Toast ===== */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--bg-elevated);
+            color: var(--text);
+            padding: 12px 24px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            z-index: 9999;
+            font-size: 0.85rem;
+            transition: transform 0.3s ease;
+            pointer-events: none;
         }
-        .notification.show { display: block; }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.error { border-color: rgba(239, 68, 68, 0.4); }
+        .toast.success { border-color: rgba(56, 189, 126, 0.4); }
 
         @media (max-width: 700px) {
             .services-grid { grid-template-columns: 1fr; }
-            .add-group-form { flex-direction: column; }
+            .add-row { flex-direction: column; }
+            .main { padding: 20px 16px; }
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>GIS Bot - Management</h1>
-        <a href="/dashboard">Dashboard &larr;</a>
-    </header>
+    <div class="header">
+        <div class="header-brand">
+            <div class="header-icon">&#x1f6f0;</div>
+            <div class="header-title">Operations Center <span>GIS Bot</span></div>
+        </div>
+        <nav class="header-nav">
+            <a href="/dashboard">Dashboard</a>
+        </nav>
+    </div>
 
-    <div class="container">
-        <h2>Services</h2>
+    <div class="main">
+        <div class="section-label">Services</div>
         <div class="services-grid" id="services-grid"></div>
 
         <div class="log-viewer" id="log-viewer"></div>
 
-        <h2>Groups Configuration</h2>
-        <div class="groups-section">
-            <div class="tabs">
-                <div class="tab active" data-platform="whatsapp" onclick="switchTab('whatsapp')">WhatsApp</div>
-                <div class="tab" data-platform="telegram" onclick="switchTab('telegram')">Telegram</div>
+        <div class="section-label">Group Configuration</div>
+        <div>
+            <div class="tab-bar">
+                <div class="tab-item active" data-platform="whatsapp" onclick="switchTab('whatsapp')">WhatsApp</div>
+                <div class="tab-item" data-platform="telegram" onclick="switchTab('telegram')">Telegram</div>
             </div>
-            <table class="groups-table">
-                <thead>
-                    <tr><th>Name</th><th>Group ID</th><th>Active</th><th>DM</th><th></th></tr>
-                </thead>
+            <table class="data-table">
+                <thead><tr><th>Name</th><th>Group ID</th><th>Active</th><th>DM</th><th></th></tr></thead>
                 <tbody id="groups-body"></tbody>
             </table>
-            <div style="margin-top:16px">
-                <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:8px">Discovered Groups (from listener):</div>
-                <div id="discovered-groups" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+
+            <div class="discovery-area">
+                <div class="discovery-label">Discovered Groups</div>
+                <div class="discovery-chips" id="discovered-groups"></div>
             </div>
-            <div class="add-group-form">
-                <input type="text" id="new-group-name" placeholder="Group Name (manual)">
+
+            <div class="add-row">
+                <input type="text" id="new-group-name" placeholder="Group name (manual)">
                 <input type="text" id="new-group-id" placeholder="Group ID (manual)">
-                <label class="dm-label"><input type="checkbox" id="new-group-dm"> DM</label>
-                <button class="btn btn-add" onclick="addGroup()">Add</button>
+                <label class="dm-check"><input type="checkbox" id="new-group-dm"> DM</label>
+                <button class="btn btn-primary btn-sm" onclick="addGroup()">Add</button>
             </div>
         </div>
     </div>
 
     <div class="modal-overlay" id="qr-modal" onclick="closeQrModal(event)">
-        <div class="modal">
-            <h3>Scan QR with WhatsApp</h3>
-            <div class="qr-container"><img id="qr-image" style="width:250px;height:250px" alt="QR Code">
-                <div class="qr-hint">WhatsApp > Settings > Linked Devices > Link a Device</div>
+        <div class="modal-box">
+            <h3>Scan with WhatsApp</h3>
+            <div class="qr-frame">
+                <img id="qr-image" alt="QR Code" style="width:240px;height:240px">
+                <div class="qr-hint">WhatsApp &gt; Settings &gt; Linked Devices &gt; Link a Device</div>
             </div>
-            <br>
-            <button class="modal-close" onclick="document.getElementById('qr-modal').classList.remove('visible')">Close</button>
+            <div style="margin-top:18px">
+                <button class="btn btn-ghost" onclick="document.getElementById('qr-modal').classList.remove('visible')">Close</button>
+            </div>
         </div>
     </div>
 
-    <div class="notification" id="notification"></div>
+    <div class="toast" id="toast"></div>
 
     <script>
-        function esc(s) {
-            const d = document.createElement('div');
-            d.textContent = s || '';
-            return d.innerHTML;
-        }
+        function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+        function escAttr(s) { return esc(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
         let currentPlatform = 'whatsapp';
         let activeLogService = null;
@@ -408,386 +609,197 @@
         let apiKey = '';
 
         async function loadApiKey() {
-            try {
-                const res = await fetch('/api/config/ui');
-                const data = await res.json();
-                apiKey = data.api_key || '';
-            } catch (e) { /* ignore */ }
+            try { const r = await fetch('/api/config/ui'); const d = await r.json(); apiKey = d.api_key || ''; } catch(e) {}
         }
-
-        function authHeaders() {
-            const h = { 'Content-Type': 'application/json' };
-            if (apiKey) h['X-API-Key'] = apiKey;
-            return h;
-        }
-
-        function authFetchOpts(method = 'POST', body = null) {
-            const opts = { method, headers: authHeaders() };
-            if (body) opts.body = JSON.stringify(body);
-            return opts;
-        }
+        function authHeaders() { const h = {'Content-Type':'application/json'}; if(apiKey) h['X-API-Key']=apiKey; return h; }
+        function authFetchOpts(method='POST', body=null) { const o={method,headers:authHeaders()}; if(body) o.body=JSON.stringify(body); return o; }
 
         // ===== Services =====
         async function loadServices() {
-            try {
-                const res = await fetch('/api/services');
-                const data = await res.json();
-                renderServices(data.services);
-            } catch (e) {
-                console.error('Failed to load services:', e);
-            }
+            try { const r = await fetch('/api/services'); const d = await r.json(); renderServices(d.services); } catch(e) {}
         }
 
         function renderServices(services) {
             const grid = document.getElementById('services-grid');
             grid.innerHTML = services.map(svc => {
-                const running = svc.running;
-                const uptime = running ? formatUptime(svc.uptime_seconds) : '';
-                const pidText = running ? `PID: ${svc.pid}` : '';
+                const on = svc.running;
+                const up = on ? formatUptime(svc.uptime_seconds) : '';
+                const meta = on ? `PID ${svc.pid}${up ? ' &middot; ' + up : ''}` : '&mdash;';
                 const auth = authStates[svc.service] || {};
-
-                let authHtml = '';
-                if (svc.service === 'whatsapp') {
-                    authHtml = renderWhatsAppAuth(running, auth);
-                } else if (svc.service === 'telegram') {
-                    authHtml = renderTelegramAuth(running, auth);
-                }
+                const authHtml = svc.service === 'whatsapp' ? renderWAAuth(on, auth) : renderTGAuth(on, auth);
 
                 return `
-                    <div class="service-card">
-                        <div class="service-header">
-                            <span class="service-name">${svc.name}</span>
-                            <span class="status-badge">
-                                <span class="status-dot ${running ? 'running' : 'stopped'}"></span>
-                                ${running ? 'Running' : 'Stopped'}
-                            </span>
-                        </div>
-                        <div class="service-info">${pidText}${pidText && uptime ? ' | ' : ''}${uptime}</div>
-                        <div class="service-actions">
-                            ${running
-                                ? `<button class="btn btn-stop" onclick="stopService('${svc.service}')">Stop</button>`
-                                : `<button class="btn btn-start" onclick="startService('${svc.service}')">Start</button>`
-                            }
-                            <button class="btn btn-logs" onclick="toggleLogs('${svc.service}')">Logs</button>
-                        </div>
-                        ${authHtml}
+                <div class="svc-card ${on ? 'is-running' : ''}">
+                    <div class="svc-top">
+                        <span class="svc-name">${svc.name}</span>
+                        <span class="svc-status">
+                            <span class="status-indicator ${on ? 'on' : 'off'}"></span>
+                            ${on ? 'ONLINE' : 'OFFLINE'}
+                        </span>
                     </div>
-                `;
+                    <div class="svc-meta">${meta}</div>
+                    <div class="svc-actions">
+                        ${on
+                            ? `<button class="btn btn-danger btn-sm" onclick="stopService('${svc.service}')">Stop</button>`
+                            : `<button class="btn btn-primary btn-sm" onclick="startService('${svc.service}')">Start</button>`
+                        }
+                        <button class="btn btn-ghost btn-sm" onclick="toggleLogs('${svc.service}')">Logs</button>
+                    </div>
+                    ${authHtml}
+                </div>`;
             }).join('');
 
-            // Update QR code if modal is open
-            if (document.getElementById('qr-modal').classList.contains('visible')) {
-                renderQrCode();
-            }
+            if (document.getElementById('qr-modal').classList.contains('visible')) renderQrCode();
         }
 
-        function renderWhatsAppAuth(running, auth) {
-            const disconnectBtn = `<button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('whatsapp')">Disconnect</button>`;
+        function renderWAAuth(on, auth) {
+            const s = auth.status || 'disconnected';
+            let badge = '', extra = '';
 
-            if (!running) return '<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Not running</div>' + disconnectBtn + '</div>';
+            if (!on) badge = `<span class="auth-badge idle">Idle</span>`;
+            else if (s === 'authenticated') badge = `<span class="auth-badge connected">&#x2713; Connected</span>`;
+            else if (s === 'qr_ready') {
+                badge = `<span class="auth-badge waiting">QR Ready</span>`;
+                extra = `<button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="openQrModal()">Scan QR Code</button>`;
+            }
+            else if (s === 'waiting_qr') badge = `<span class="auth-badge waiting">Initializing...</span>`;
+            else if (s === 'auth_failure') badge = `<span class="auth-badge error">Auth Failed</span>`;
+            else badge = `<span class="auth-badge idle">Connecting...</span>`;
 
-            const status = auth.status || 'disconnected';
-
-            if (status === 'authenticated') {
-                return `<div class="auth-section"><div class="auth-status auth-connected">Connected</div>${disconnectBtn}</div>`;
-            }
-            if (status === 'qr_ready') {
-                return `
-                    <div class="auth-section">
-                        <div class="auth-status auth-waiting">QR code ready</div>
-                        <button class="btn btn-start" style="margin-top:8px" onclick="openQrModal()">Scan QR Code</button>
-                        ${disconnectBtn}
-                    </div>`;
-            }
-            if (status === 'waiting_qr') {
-                return `<div class="auth-section"><div class="auth-status auth-waiting">Starting... waiting for QR code</div>${disconnectBtn}</div>`;
-            }
-            if (status === 'auth_failure') {
-                return `<div class="auth-section"><div class="auth-status auth-error">Authentication failed</div>${disconnectBtn}</div>`;
-            }
-            return `<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Connecting...</div>${disconnectBtn}</div>`;
+            return `<div class="auth-area">${badge}${extra}<div class="auth-actions"><button class="btn btn-ghost-danger btn-sm" onclick="disconnectService('whatsapp')">Disconnect</button></div></div>`;
         }
 
-        function renderTelegramAuth(running, auth) {
-            const status = auth.status || 'disconnected';
-            const username = auth.bot_username || '';
-            const disconnectBtn = `<button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('telegram')">Disconnect</button>`;
+        function renderTGAuth(on, auth) {
+            const s = auth.status || 'disconnected';
+            const u = auth.bot_username || '';
+            let badge = '';
 
-            let statusHtml = '';
-            if (running && status === 'authenticated' && username) {
-                statusHtml = `<div class="auth-status auth-connected">Connected as @${username}</div>${disconnectBtn}`;
-            } else if (running && status === 'auth_failure') {
-                statusHtml = `<div class="auth-status auth-error">Connection failed - check token</div>${disconnectBtn}`;
-            } else if (running) {
-                statusHtml = `<div class="auth-status auth-waiting">Connecting...</div>`;
-            }
+            if (on && s === 'authenticated' && u) badge = `<span class="auth-badge connected">&#x2713; @${esc(u)}</span>`;
+            else if (on && s === 'auth_failure') badge = `<span class="auth-badge error">Failed</span>`;
+            else if (on) badge = `<span class="auth-badge waiting">Connecting...</span>`;
 
-            return `
-                <div class="auth-section">
-                    ${statusHtml}
-                    <div class="token-form">
-                        <input type="text" id="tg-token-input" placeholder="Bot token from @BotFather" value="">
-                        <button class="btn btn-save" onclick="saveTelegramToken()">Save</button>
-                    </div>
-                </div>`;
+            const disc = (on && (s === 'authenticated' || s === 'auth_failure'))
+                ? `<button class="btn btn-ghost-danger btn-sm" onclick="disconnectService('telegram')">Disconnect</button>` : '';
+
+            return `<div class="auth-area">${badge}${disc}
+                <div class="token-row">
+                    <input type="text" class="token-input" id="tg-token-input" placeholder="Bot token from @BotFather">
+                    <button class="btn btn-primary btn-sm" onclick="saveTelegramToken()">Save</button>
+                </div>
+            </div>`;
         }
 
-        function openQrModal() {
-            document.getElementById('qr-modal').classList.add('visible');
-            setTimeout(() => renderQrCode(true), 100);
-        }
+        // ===== QR =====
+        function openQrModal() { document.getElementById('qr-modal').classList.add('visible'); setTimeout(()=>renderQrCode(true),100); }
+        function closeQrModal(e) { if(e.target===e.currentTarget) document.getElementById('qr-modal').classList.remove('visible'); }
 
-        function closeQrModal(e) {
-            if (e.target === e.currentTarget) {
-                document.getElementById('qr-modal').classList.remove('visible');
-            }
-        }
-
-        function renderQrCode(force = false) {
+        function renderQrCode(force=false) {
             const img = document.getElementById('qr-image');
             const auth = authStates['whatsapp'] || {};
             if (img && auth.qr_data && auth.status === 'qr_ready') {
                 if (auth.qr_data !== lastQrData || force) {
                     lastQrData = auth.qr_data;
-                    QRCode.toDataURL(auth.qr_data, {
-                        width: 300,
-                        margin: 1,
-                        color: { dark: '#000000', light: '#ffffff' }
-                    }, function(err, url) {
-                        if (!err && img) img.src = url;
-                    });
+                    QRCode.toDataURL(auth.qr_data, {width:300,margin:1,color:{dark:'#000000',light:'#ffffff'}}, function(err,url) { if(!err&&img) img.src=url; });
                 }
             } else if (auth.status === 'authenticated') {
                 document.getElementById('qr-modal').classList.remove('visible');
                 lastQrData = null;
-            } else {
-                lastQrData = null;
-            }
+            } else { lastQrData = null; }
         }
 
         async function saveTelegramToken() {
             const input = document.getElementById('tg-token-input');
             const token = input ? input.value.trim() : '';
             if (!token) { notify('Enter a bot token', true); return; }
-
             try {
-                const res = await fetch('/api/services/telegram/token', authFetchOpts('POST', { token }));
-                const data = await res.json();
-                if (data.error) {
-                    notify(data.error, true);
-                } else {
-                    notify('Token saved. Start the Telegram service to connect.');
-                    input.value = '';
-                }
-            } catch (e) {
-                notify('Failed to save token', true);
-            }
+                const r = await fetch('/api/services/telegram/token', authFetchOpts('POST',{token}));
+                const d = await r.json();
+                if (d.error) notify(d.error, true); else { notify('Token saved'); input.value=''; }
+            } catch(e) { notify('Failed to save token', true); }
         }
 
-        // ===== Auth Polling =====
+        // ===== Polling =====
         async function pollAuth() {
-            for (const name of ['whatsapp', 'telegram']) {
-                try {
-                    const res = await fetch(`/api/services/${name}/auth`);
-                    authStates[name] = await res.json();
-                } catch (e) { /* ignore */ }
+            for (const n of ['whatsapp','telegram']) {
+                try { const r = await fetch(`/api/services/${n}/auth`); authStates[n] = await r.json(); } catch(e) {}
             }
         }
 
-        function formatUptime(seconds) {
-            if (!seconds) return '';
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            if (h > 0) return `${h}h ${m}m`;
-            if (m > 0) return `${m}m ${s}s`;
-            return `${s}s`;
+        function formatUptime(s) { if(!s) return ''; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; if(h>0) return h+'h '+m+'m'; if(m>0) return m+'m '+sec+'s'; return sec+'s'; }
+
+        async function startService(n) { try { const r=await fetch(`/api/services/${n}/start`,authFetchOpts()); const d=await r.json(); if(d.error) notify(d.error,true); else notify(d.name+' started'); loadServices(); } catch(e){notify('Failed',true);} }
+        async function stopService(n) { try { const r=await fetch(`/api/services/${n}/stop`,authFetchOpts()); const d=await r.json(); notify(d.name+' stopped'); loadServices(); } catch(e){notify('Failed',true);} }
+        async function disconnectService(n) {
+            if(!confirm('Disconnect '+n+'? This stops the service and clears its session.')) return;
+            try { const r=await fetch(`/api/services/${n}/disconnect`,authFetchOpts()); const d=await r.json(); notify(d.name+' disconnected'); await pollAuth(); loadServices(); } catch(e){notify('Failed',true);}
         }
 
-        async function startService(name) {
-            try {
-                const res = await fetch(`/api/services/${name}/start`, authFetchOpts());
-                const data = await res.json();
-                if (data.error) { notify(data.error, true); } else { notify(`${data.name} started`); }
-                loadServices();
-            } catch (e) { notify('Failed to start service', true); }
+        async function toggleLogs(n) {
+            const v = document.getElementById('log-viewer');
+            if (activeLogService===n) { v.classList.remove('visible'); activeLogService=null; if(logInterval) clearInterval(logInterval); return; }
+            activeLogService=n; v.classList.add('visible'); await refreshLogs(); if(logInterval) clearInterval(logInterval); logInterval=setInterval(refreshLogs,3000);
         }
-
-        async function stopService(name) {
-            try {
-                const res = await fetch(`/api/services/${name}/stop`, authFetchOpts());
-                const data = await res.json();
-                notify(`${data.name} stopped`);
-                loadServices();
-            } catch (e) { notify('Failed to stop service', true); }
-        }
-
-        async function disconnectService(name) {
-            if (!confirm(`Disconnect ${name}? This will stop the service and clear its session.`)) return;
-            try {
-                const res = await fetch(`/api/services/${name}/disconnect`, authFetchOpts());
-                const data = await res.json();
-                notify(`${data.name} disconnected (cleared: ${data.cleared.join(', ')})`);
-                await pollAuth();
-                loadServices();
-            } catch (e) { notify('Failed to disconnect', true); }
-        }
-
-        async function toggleLogs(name) {
-            const viewer = document.getElementById('log-viewer');
-            if (activeLogService === name) {
-                viewer.classList.remove('visible');
-                activeLogService = null;
-                if (logInterval) clearInterval(logInterval);
-                return;
-            }
-            activeLogService = name;
-            viewer.classList.add('visible');
-            await refreshLogs();
-            if (logInterval) clearInterval(logInterval);
-            logInterval = setInterval(refreshLogs, 3000);
-        }
-
-        async function refreshLogs() {
-            if (!activeLogService) return;
-            try {
-                const res = await fetch(`/api/services/${activeLogService}/logs?lines=100`);
-                const data = await res.json();
-                const viewer = document.getElementById('log-viewer');
-                viewer.textContent = data.logs || '(no logs yet)';
-                viewer.scrollTop = viewer.scrollHeight;
-            } catch (e) { /* ignore */ }
-        }
+        async function refreshLogs() { if(!activeLogService) return; try { const r=await fetch(`/api/services/${activeLogService}/logs?lines=100`); const d=await r.json(); const v=document.getElementById('log-viewer'); v.textContent=d.logs||'(no logs)'; v.scrollTop=v.scrollHeight; } catch(e){} }
 
         // ===== Groups =====
         let configuredGroupIds = new Set();
 
         async function loadGroups() {
-            try {
-                const res = await fetch(`/api/groups?platform=${currentPlatform}`);
-                const data = await res.json();
-                configuredGroupIds = new Set(data.groups.map(g => g.group_id));
-                renderGroups(data.groups);
-                loadDiscoveredGroups();
-            } catch (e) { console.error('Failed to load groups:', e); }
+            try { const r=await fetch(`/api/groups?platform=${currentPlatform}`); const d=await r.json(); configuredGroupIds=new Set(d.groups.map(g=>g.group_id)); renderGroups(d.groups); loadDiscoveredGroups(); } catch(e){}
         }
 
         async function loadDiscoveredGroups() {
-            const container = document.getElementById('discovered-groups');
-            const platform = currentPlatform;
+            const c = document.getElementById('discovered-groups');
             try {
-                const res = await fetch(`/api/services/${platform}/discovered-groups`);
-                const data = await res.json();
-                const groups = (data.groups || []).filter(g => !configuredGroupIds.has(g.id));
-                if (groups.length === 0) {
-                    container.innerHTML = '<span style="color:var(--text-dim);font-size:0.85rem">No new groups discovered. Start the listener and send a message in a group.</span>';
-                    return;
-                }
-                container.innerHTML = groups.map(g => `
-                    <button class="btn btn-add" style="font-size:0.85rem;padding:6px 14px"
-                        onclick="quickAddGroup('${esc(g.id).replace(/'/g, "&#39;")}', '${esc(g.name).replace(/'/g, "&#39;")}')">
-                        + ${esc(g.name || g.id)}
-                    </button>
-                `).join('');
-            } catch (e) {
-                container.innerHTML = '';
-            }
+                const r = await fetch(`/api/services/${currentPlatform}/discovered-groups`);
+                const d = await r.json();
+                const groups = (d.groups||[]).filter(g=>!configuredGroupIds.has(g.id));
+                if (!groups.length) { c.innerHTML = '<span class="discovery-empty">No new groups. Start the listener and send a message.</span>'; return; }
+                c.innerHTML = groups.map(g=>`<button class="chip" onclick="quickAddGroup('${escAttr(g.id)}','${escAttr(g.name)}')">+ ${esc(g.name||g.id)}</button>`).join('');
+            } catch(e) { c.innerHTML=''; }
         }
 
-        async function quickAddGroup(groupId, groupName) {
-            try {
-                const res = await fetch('/api/groups', authFetchOpts('POST', { platform: currentPlatform, group_id: groupId, group_name: groupName, is_dm: false }));
-                const data = await res.json();
-                if (data.error) { notify(data.error, true); } else {
-                    notify(`Added: ${groupName || groupId}`);
-                    loadGroups();
-                }
-            } catch (e) { notify('Failed to add group', true); }
+        async function quickAddGroup(id,name) {
+            try { const r=await fetch('/api/groups',authFetchOpts('POST',{platform:currentPlatform,group_id:id,group_name:name,is_dm:false})); const d=await r.json(); if(d.error) notify(d.error,true); else { notify('Added: '+(name||id)); loadGroups(); } } catch(e){notify('Failed',true);}
         }
 
         function renderGroups(groups) {
-            const body = document.getElementById('groups-body');
-            if (groups.length === 0) {
-                body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-dim)">No groups configured</td></tr>`;
-                return;
-            }
-            body.innerHTML = groups.map(g => `
-                <tr>
-                    <td>${esc(g.group_name || '-')}</td>
-                    <td style="font-family:monospace;font-size:0.8rem">${esc(g.group_id)}</td>
-                    <td>
-                        <label class="toggle">
-                            <input type="checkbox" ${g.is_active ? 'checked' : ''} onchange="toggleGroup(${g.id}, this.checked)">
-                            <span class="slider"></span>
-                        </label>
-                    </td>
-                    <td>${g.is_dm ? 'Yes' : '-'}</td>
-                    <td><button class="btn-delete" onclick="deleteGroup(${g.id})" title="Delete">&times;</button></td>
-                </tr>
-            `).join('');
+            const b = document.getElementById('groups-body');
+            if (!groups.length) { b.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">No groups configured</td></tr>`; return; }
+            b.innerHTML = groups.map(g=>`<tr>
+                <td>${esc(g.group_name||'-')}</td>
+                <td class="mono">${esc(g.group_id)}</td>
+                <td><label class="toggle"><input type="checkbox" ${g.is_active?'checked':''} onchange="toggleGroup(${g.id},this.checked)"><span class="slider"></span></label></td>
+                <td style="color:var(--text-muted)">${g.is_dm?'Yes':'-'}</td>
+                <td><button class="btn-icon-delete" onclick="deleteGroup(${g.id})" title="Delete">&times;</button></td>
+            </tr>`).join('');
         }
 
-        function switchTab(platform) {
-            currentPlatform = platform;
-            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.platform === platform));
-            loadGroups();
-        }
-
-        async function toggleGroup(id, active) {
-            try {
-                await fetch(`/api/groups/${id}`, authFetchOpts('PATCH', { is_active: active }));
-                notify(active ? 'Group activated' : 'Group deactivated');
-            } catch (e) { notify('Failed to update group', true); loadGroups(); }
-        }
-
-        async function deleteGroup(id) {
-            if (!confirm('Delete this group?')) return;
-            try {
-                await fetch(`/api/groups/${id}`, authFetchOpts('DELETE'));
-                notify('Group deleted');
-                loadGroups();
-            } catch (e) { notify('Failed to delete group', true); }
-        }
+        function switchTab(p) { currentPlatform=p; document.querySelectorAll('.tab-item').forEach(t=>t.classList.toggle('active',t.dataset.platform===p)); loadGroups(); }
+        async function toggleGroup(id,active) { try { await fetch(`/api/groups/${id}`,authFetchOpts('PATCH',{is_active:active})); notify(active?'Activated':'Deactivated'); } catch(e){notify('Failed',true);loadGroups();} }
+        async function deleteGroup(id) { if(!confirm('Delete this group?')) return; try { await fetch(`/api/groups/${id}`,authFetchOpts('DELETE')); notify('Deleted'); loadGroups(); } catch(e){notify('Failed',true);} }
 
         async function addGroup() {
-            const name = document.getElementById('new-group-name').value.trim();
-            const groupId = document.getElementById('new-group-id').value.trim();
-            const isDm = document.getElementById('new-group-dm').checked;
-            if (!groupId) { notify('Group ID is required', true); return; }
-
-            try {
-                const res = await fetch('/api/groups', authFetchOpts('POST', { platform: currentPlatform, group_id: groupId, group_name: name, is_dm: isDm }));
-                const data = await res.json();
-                if (data.error) { notify(data.error, true); } else {
-                    notify('Group added');
-                    document.getElementById('new-group-name').value = '';
-                    document.getElementById('new-group-id').value = '';
-                    document.getElementById('new-group-dm').checked = false;
-                    loadGroups();
-                }
-            } catch (e) { notify('Failed to add group', true); }
+            const name=document.getElementById('new-group-name').value.trim();
+            const gid=document.getElementById('new-group-id').value.trim();
+            const dm=document.getElementById('new-group-dm').checked;
+            if(!gid){notify('Group ID required',true);return;}
+            try { const r=await fetch('/api/groups',authFetchOpts('POST',{platform:currentPlatform,group_id:gid,group_name:name,is_dm:dm})); const d=await r.json(); if(d.error) notify(d.error,true); else { notify('Added'); document.getElementById('new-group-name').value=''; document.getElementById('new-group-id').value=''; document.getElementById('new-group-dm').checked=false; loadGroups(); } } catch(e){notify('Failed',true);}
         }
 
-        function notify(msg, isError = false) {
-            const el = document.getElementById('notification');
+        function notify(msg, isError=false) {
+            const el = document.getElementById('toast');
             el.textContent = msg;
-            el.style.borderLeft = isError ? '4px solid var(--danger)' : '4px solid var(--primary-color)';
-            el.classList.add('show');
-            setTimeout(() => el.classList.remove('show'), 3000);
+            el.className = 'toast show ' + (isError ? 'error' : 'success');
+            setTimeout(()=>{ el.classList.remove('show'); }, 3000);
         }
 
-        // ===== Init =====
         async function init() {
             await loadApiKey();
             await pollAuth();
             loadServices();
             loadGroups();
-            // Poll auth every 2s (QR codes expire fast), services every 5s
-            setInterval(async () => {
-                await pollAuth();
-                loadServices();
-            }, 2000);
-            // Refresh groups and discovered groups every 5s
+            setInterval(async()=>{ await pollAuth(); loadServices(); }, 2000);
             setInterval(loadGroups, 5000);
         }
         init();
