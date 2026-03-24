@@ -39,21 +39,22 @@ async function startBot() {
     const pythonClient = new PythonServiceClient(pythonServiceUrl);
 
     // Fetch target groups from management server
-    let targetGroups: TargetGroup[] = [];
     let targetGroupIds = new Set<string>();
     let allowDMs = config.telegram?.allow_direct_messages ?? false;
 
-    try {
-        targetGroups = await pythonClient.getTargetGroups('telegram');
-        targetGroupIds = new Set(targetGroups.filter(g => g.is_active).map(g => g.group_id));
-        logger.info({
-            groupCount: targetGroupIds.size,
-            groups: targetGroups.map(g => g.group_name),
-            allowDMs
-        }, 'Target groups loaded from management server');
-    } catch (error: any) {
-        logger.warn({ error: error.message }, 'Could not fetch groups from management server');
+    async function refreshTargetGroups() {
+        try {
+            const groups = await pythonClient.getTargetGroups('telegram');
+            targetGroupIds = new Set(groups.filter(g => g.is_active).map(g => g.group_id));
+            logger.debug({ groupCount: targetGroupIds.size }, 'Target groups refreshed');
+        } catch (error: any) {
+            logger.warn({ error: error.message }, 'Could not fetch groups from management server');
+        }
     }
+
+    await refreshTargetGroups();
+    // Refresh groups every 60 seconds
+    setInterval(refreshTargetGroups, 60000);
 
     // Create bot
     const bot = new Bot(token);

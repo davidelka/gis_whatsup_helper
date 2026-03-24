@@ -41,3 +41,13 @@ export interface MessagingAdapter {
     sendFileMessage(chatId: string, data: Buffer, filename: string, mimeType: string): Promise<void>;
     getQuotedMessageMedia(platformMsg: any): Promise<MediaInfo | null>;
 }
+
+/** Race a promise against a timeout. Rejects with Error on timeout. */
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+        )
+    ]);
+}

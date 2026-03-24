@@ -1,4 +1,4 @@
-export { ParsedMessage, LocationData, MediaInfo, MessagingAdapter } from './types';
+export { ParsedMessage, LocationData, MediaInfo, MessagingAdapter, withTimeout } from './types';
 export { logger } from './logger';
 export { Config, WhatsAppConfig, TelegramConfig, PythonServiceConfig, StorageConfig, LoggingConfig, loadConfig, getPythonServiceUrl, getTelegramToken } from './config';
 export { ReportTracker, ReportData, TimeoutEvent, TimeoutCallback, ConfirmationType, REPORT_START, REPORT_END } from './reportTracker';

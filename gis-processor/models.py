@@ -78,7 +78,7 @@ class Location(Base):
         if self.tags_json:
             try:
                 return json.loads(self.tags_json)
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 return []
         return []
 
@@ -136,7 +136,7 @@ class Track(Base):
         if self.tags_json:
             try:
                 return json.loads(self.tags_json)
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 return []
         return []
 
@@ -209,7 +209,7 @@ class Report(Base):
         if self.tags_json:
             try:
                 return json.loads(self.tags_json)
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 return []
         return []
 

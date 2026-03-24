@@ -151,14 +151,14 @@ class ServiceManager:
         return proc is not None and proc.poll() is None
 
     def get_logs(self, service_name: str, lines: int = 100) -> str:
+        from collections import deque
         log_path = os.path.join(self.log_dir, f'{service_name}.log')
         if not os.path.exists(log_path):
             return ''
 
         try:
             with open(log_path, 'r') as f:
-                all_lines = f.readlines()
-                return ''.join(all_lines[-lines:])
+                return ''.join(deque(f, maxlen=lines))
         except Exception:
             return ''
 

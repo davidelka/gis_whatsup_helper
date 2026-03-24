@@ -25,7 +25,7 @@ from gis_export import (
 )
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=['http://localhost:5000', 'http://127.0.0.1:5000'])
 
 # Load configuration
 def load_config():
@@ -107,7 +107,7 @@ def receive_message():
             if data.get('timestamp'):
                 try:
                     timestamp = datetime.fromtimestamp(data['timestamp'])
-                except:
+                except (ValueError, TypeError, OSError):
                     timestamp = datetime.utcnow()
             
             # Create message record
@@ -194,12 +194,12 @@ def receive_report():
             if data.get('startedAt'):
                 try:
                     started_at = datetime.fromtimestamp(data['startedAt'])
-                except:
+                except (ValueError, TypeError, OSError):
                     started_at = datetime.utcnow()
             if data.get('endedAt'):
                 try:
                     ended_at = datetime.fromtimestamp(data['endedAt'])
-                except:
+                except (ValueError, TypeError, OSError):
                     ended_at = datetime.utcnow()
             
             # Extract location from report
@@ -748,14 +748,14 @@ def export_map_image():
             try:
                 from_dt = datetime.fromisoformat(from_date)
                 track_query = track_query.filter(Track.timestamp >= from_dt)
-            except:
+            except (ValueError, TypeError, OSError):
                 pass
         to_date = request.args.get('to_date')
         if to_date:
             try:
                 to_dt = datetime.fromisoformat(to_date + 'T23:59:59')
                 track_query = track_query.filter(Track.timestamp <= to_dt)
-            except:
+            except (ValueError, TypeError, OSError):
                 pass
         tracks = track_query.all()
 
@@ -814,14 +814,14 @@ def export_map_html():
             try:
                 from_dt = datetime.fromisoformat(from_date)
                 track_query = track_query.filter(Track.timestamp >= from_dt)
-            except:
+            except (ValueError, TypeError, OSError):
                 pass
         to_date = request.args.get('to_date')
         if to_date:
             try:
                 to_dt = datetime.fromisoformat(to_date + 'T23:59:59')
                 track_query = track_query.filter(Track.timestamp <= to_dt)
-            except:
+            except (ValueError, TypeError, OSError):
                 pass
         tracks = track_query.all()
 

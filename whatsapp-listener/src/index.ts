@@ -3,22 +3,12 @@ import * as qrcode from 'qrcode-terminal';
 import * as path from 'path';
 import axios from 'axios';
 
-import { loadConfig, getPythonServiceUrl, logger, PythonServiceClient, Config } from '@gis-bot/shared';
+import { loadConfig, getPythonServiceUrl, logger, PythonServiceClient, Config, withTimeout } from '@gis-bot/shared';
 import { MessageHandler } from './messageHandler';
 
 /** Fire-and-forget POST auth state to management server */
 function postAuth(baseUrl: string, data: Record<string, any>) {
     axios.post(`${baseUrl}/api/services/whatsapp/auth`, data, { timeout: 3000 }).catch(() => {});
-}
-
-/** Race a promise against a timeout. Rejects with Error on timeout. */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-    return Promise.race([
-        promise,
-        new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-        )
-    ]);
 }
 
 async function startBot(): Promise<Client> {
@@ -37,13 +27,20 @@ async function startBot(): Promise<Client> {
 
     // Fetch target groups from management server
     let targetGroups = new Set<string>();
-    try {
-        const groups = await pythonClient.getTargetGroups('whatsapp');
-        targetGroups = new Set(groups.filter(g => g.is_active).map(g => g.group_id));
-        logger.info({ groupCount: targetGroups.size, groups: groups.map(g => g.group_name) }, 'Target groups loaded from management server');
-    } catch (error: any) {
-        logger.warn({ error: error.message }, 'Could not fetch groups from management server. No group filtering active.');
+
+    async function refreshTargetGroups() {
+        try {
+            const groups = await pythonClient.getTargetGroups('whatsapp');
+            targetGroups = new Set(groups.filter(g => g.is_active).map(g => g.group_id));
+            logger.debug({ groupCount: targetGroups.size }, 'Target groups refreshed');
+        } catch (error: any) {
+            logger.warn({ error: error.message }, 'Could not fetch groups from management server');
+        }
     }
+
+    await refreshTargetGroups();
+    // Refresh groups every 60 seconds
+    setInterval(refreshTargetGroups, 60000);
 
     // Create message handler
     const messageHandler = new MessageHandler(config);
