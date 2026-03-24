@@ -1130,6 +1130,12 @@ def stop_service(name):
     return jsonify(result)
 
 
+@app.route('/api/services/<name>/disconnect', methods=['POST'])
+def disconnect_service(name):
+    result = service_manager.disconnect(name)
+    return jsonify(result)
+
+
 @app.route('/api/services/<name>/auth', methods=['GET'])
 def get_service_auth(name):
     return jsonify(service_manager.get_auth(name))

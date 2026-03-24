@@ -2,6 +2,7 @@
 Service manager for starting/stopping WhatsApp and Telegram listener processes.
 """
 import os
+import shutil
 import signal
 import subprocess
 import time
@@ -180,6 +181,34 @@ class ServiceManager:
         except Exception as e:
             logger.error(f'Failed to save Telegram token: {e}')
             return False
+
+    def disconnect(self, service_name: str) -> dict:
+        """Stop the service and clear its auth session."""
+        # Stop first
+        self.stop(service_name)
+
+        cleared = []
+
+        if service_name == 'whatsapp':
+            # Remove WhatsApp auth_info directory
+            auth_dir = os.path.join(self.project_root, 'whatsapp-listener', 'auth_info')
+            if os.path.isdir(auth_dir):
+                shutil.rmtree(auth_dir)
+                cleared.append('auth_info')
+            # Remove wwebjs_cache
+            cache_dir = os.path.join(self.project_root, 'whatsapp-listener', '.wwebjs_cache')
+            if os.path.isdir(cache_dir):
+                shutil.rmtree(cache_dir)
+                cleared.append('.wwebjs_cache')
+
+        elif service_name == 'telegram':
+            # Clear bot token from config
+            self.save_telegram_token('YOUR_BOT_TOKEN_HERE')
+            cleared.append('bot_token')
+
+        self.update_auth(service_name, {'status': 'disconnected', 'qr_data': None, 'bot_username': None})
+        logger.info(f'Disconnected {service_name}, cleared: {cleared}')
+        return {'status': 'disconnected', 'cleared': cleared, 'name': SERVICES.get(service_name, {}).get('name', service_name)}
 
     def set_discovered_groups(self, service_name: str, groups: list[dict]):
         self.discovered_groups[service_name] = groups

@@ -410,7 +410,7 @@
             const status = auth.status || 'disconnected';
 
             if (status === 'authenticated') {
-                return `<div class="auth-section"><div class="auth-status auth-connected">Connected</div></div>`;
+                return `<div class="auth-section"><div class="auth-status auth-connected">Connected</div><button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('whatsapp')">Disconnect</button></div>`;
             }
             if (status === 'qr_ready') {
                 return `
@@ -434,7 +434,7 @@
 
             let statusHtml = '';
             if (running && status === 'authenticated' && username) {
-                statusHtml = `<div class="auth-status auth-connected">Connected as @${username}</div>`;
+                statusHtml = `<div class="auth-status auth-connected">Connected as @${username}</div><button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('telegram')">Disconnect</button>`;
             } else if (running && status === 'auth_failure') {
                 statusHtml = `<div class="auth-status auth-error">Connection failed - check token</div>`;
             } else if (running) {
@@ -527,6 +527,17 @@
                 notify(`${data.name} stopped`);
                 loadServices();
             } catch (e) { notify('Failed to stop service', true); }
+        }
+
+        async function disconnectService(name) {
+            if (!confirm(`Disconnect ${name}? This will stop the service and clear its session.`)) return;
+            try {
+                const res = await fetch(`/api/services/${name}/disconnect`, { method: 'POST' });
+                const data = await res.json();
+                notify(`${data.name} disconnected (cleared: ${data.cleared.join(', ')})`);
+                await pollAuth();
+                loadServices();
+            } catch (e) { notify('Failed to disconnect', true); }
         }
 
         async function toggleLogs(name) {
