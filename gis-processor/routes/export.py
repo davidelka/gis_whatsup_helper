@@ -398,15 +398,16 @@ var tracks = {tracks_json};
 var map = L.map('map');
 L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',{{
   attribution:'&copy; OpenStreetMap contributors',maxZoom:19}}).addTo(map);
+function esc(s){{var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}}
 var bounds = [];
 points.forEach(function(p){{
   var marker = L.marker([p.lat,p.lng]).addTo(map);
-  marker.bindPopup('<b>'+p.name+'</b><br>'+p.sender+'<br>'+p.time+'<br>'+p.address);
+  marker.bindPopup('<b>'+esc(p.name)+'</b><br>'+esc(p.sender)+'<br>'+esc(p.time)+'<br>'+esc(p.address));
   bounds.push([p.lat,p.lng]);
 }});
 tracks.forEach(function(t){{
   var layer = L.geoJSON(t.geometry,{{style:{{color:'#FF6B35',weight:3,opacity:0.8}}}}).addTo(map);
-  layer.bindPopup('<b>'+t.name+'</b><br>'+t.source);
+  layer.bindPopup('<b>'+esc(t.name)+'</b><br>'+esc(t.source));
   var b = layer.getBounds();
   if(b.isValid()){{bounds.push([b.getSouthWest().lat,b.getSouthWest().lng]);bounds.push([b.getNorthEast().lat,b.getNorthEast().lng]);}}
 }});
@@ -524,4 +525,5 @@ def import_kml():
 
     except Exception as e:
         current_app.logger.error(f"Error importing KML: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500

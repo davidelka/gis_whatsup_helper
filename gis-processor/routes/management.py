@@ -20,8 +20,21 @@ Handles:
 from flask import Blueprint, request, jsonify, send_from_directory, current_app
 
 from models import ListenerGroup, get_session
+from auth import require_api_key
 
 management_bp = Blueprint('management', __name__)
+
+VALID_SERVICES = {'whatsapp', 'telegram'}
+
+
+@management_bp.before_request
+def validate_service_name():
+    """Reject requests with unknown service names in URL."""
+    from flask import request as req
+    view_args = req.view_args or {}
+    name = view_args.get('name')
+    if name is not None and name not in VALID_SERVICES:
+        return jsonify({'error': f'Unknown service: {name}'}), 404
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +81,13 @@ def management_page():
     return send_from_directory(current_app.static_folder, 'management.html')
 
 
+@management_bp.route('/api/config/ui', methods=['GET'])
+def get_ui_config():
+    """Return API key for the management UI to use in requests."""
+    api_key = current_app.config.get('API_KEY', '')
+    return jsonify({'api_key': api_key or ''})
+
+
 # ---------------------------------------------------------------------------
 # Service management
 # ---------------------------------------------------------------------------
@@ -79,6 +99,7 @@ def get_services():
 
 
 @management_bp.route('/api/services/<name>/start', methods=['POST'])
+@require_api_key
 def start_service(name):
     service_manager = current_app.config['SERVICE_MANAGER']
     result = service_manager.start(name)
@@ -87,6 +108,7 @@ def start_service(name):
 
 
 @management_bp.route('/api/services/<name>/stop', methods=['POST'])
+@require_api_key
 def stop_service(name):
     service_manager = current_app.config['SERVICE_MANAGER']
     result = service_manager.stop(name)
@@ -94,6 +116,7 @@ def stop_service(name):
 
 
 @management_bp.route('/api/services/<name>/disconnect', methods=['POST'])
+@require_api_key
 def disconnect_service(name):
     service_manager = current_app.config['SERVICE_MANAGER']
     result = service_manager.disconnect(name)
@@ -107,6 +130,7 @@ def get_service_auth(name):
 
 
 @management_bp.route('/api/services/<name>/auth', methods=['POST'])
+@require_api_key
 def update_service_auth(name):
     service_manager = current_app.config['SERVICE_MANAGER']
     data = request.get_json()
@@ -117,6 +141,7 @@ def update_service_auth(name):
 
 
 @management_bp.route('/api/services/telegram/token', methods=['POST'])
+@require_api_key
 def save_telegram_token():
     service_manager = current_app.config['SERVICE_MANAGER']
     data = request.get_json()
@@ -135,6 +160,7 @@ def get_discovered_groups(name):
 
 
 @management_bp.route('/api/services/<name>/discovered-groups', methods=['POST'])
+@require_api_key
 def post_discovered_groups(name):
     service_manager = current_app.config['SERVICE_MANAGER']
     data = request.get_json()
@@ -153,7 +179,7 @@ def post_discovered_groups(name):
 @management_bp.route('/api/services/<name>/logs', methods=['GET'])
 def get_service_logs(name):
     service_manager = current_app.config['SERVICE_MANAGER']
-    lines = request.args.get('lines', 100, type=int)
+    lines = min(request.args.get('lines', 100, type=int), 1000)
     logs = service_manager.get_logs(name, lines)
     return jsonify({'logs': logs, 'service': name})
 
@@ -178,6 +204,7 @@ def get_groups():
 
 
 @management_bp.route('/api/groups', methods=['POST'])
+@require_api_key
 def create_group():
     engine = current_app.config['ENGINE']
     data = request.get_json()
@@ -206,12 +233,14 @@ def create_group():
         return jsonify({'status': 'created', 'group': group.to_dict()}), 201
     except Exception as e:
         session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
     finally:
         session.close()
 
 
 @management_bp.route('/api/groups/<int:group_id>', methods=['PATCH'])
+@require_api_key
 def update_group(group_id):
     engine = current_app.config['ENGINE']
     data = request.get_json()
@@ -232,12 +261,14 @@ def update_group(group_id):
         return jsonify({'status': 'updated', 'group': group.to_dict()})
     except Exception as e:
         session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
     finally:
         session.close()
 
 
 @management_bp.route('/api/groups/<int:group_id>', methods=['DELETE'])
+@require_api_key
 def delete_group(group_id):
     engine = current_app.config['ENGINE']
     session = get_session(engine)
@@ -251,6 +282,7 @@ def delete_group(group_id):
         return jsonify({'status': 'deleted'})
     except Exception as e:
         session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
     finally:
         session.close()

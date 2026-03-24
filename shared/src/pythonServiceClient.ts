@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 import { ParsedMessage } from './types';
 import { ReportData } from './reportTracker';
 import { logger } from './logger';
@@ -14,16 +14,26 @@ export interface TargetGroup {
 
 export class PythonServiceClient {
     private baseUrl: string;
+    private apiKey?: string;
 
-    constructor(baseUrl: string) {
+    constructor(baseUrl: string, apiKey?: string) {
         this.baseUrl = baseUrl;
+        this.apiKey = apiKey;
+    }
+
+    private authHeaders(): Record<string, string> {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (this.apiKey) {
+            headers['X-API-Key'] = this.apiKey;
+        }
+        return headers;
     }
 
     async forwardMessage(message: ParsedMessage): Promise<void> {
         try {
             const response = await axios.post(`${this.baseUrl}/message`, message, {
                 timeout: 5000,
-                headers: { 'Content-Type': 'application/json' }
+                headers: this.authHeaders()
             });
 
             logger.debug({
@@ -46,7 +56,7 @@ export class PythonServiceClient {
 
             const response = await axios.post(`${this.baseUrl}/report`, cleanReport, {
                 timeout: 10000,
-                headers: { 'Content-Type': 'application/json' }
+                headers: this.authHeaders()
             });
 
             logger.info({

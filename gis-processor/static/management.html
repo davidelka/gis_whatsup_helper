@@ -405,6 +405,27 @@
         let logInterval = null;
         let authStates = {};
         let lastQrData = null;
+        let apiKey = '';
+
+        async function loadApiKey() {
+            try {
+                const res = await fetch('/api/config/ui');
+                const data = await res.json();
+                apiKey = data.api_key || '';
+            } catch (e) { /* ignore */ }
+        }
+
+        function authHeaders() {
+            const h = { 'Content-Type': 'application/json' };
+            if (apiKey) h['X-API-Key'] = apiKey;
+            return h;
+        }
+
+        function authFetchOpts(method = 'POST', body = null) {
+            const opts = { method, headers: authHeaders() };
+            if (body) opts.body = JSON.stringify(body);
+            return opts;
+        }
 
         // ===== Services =====
         async function loadServices() {
@@ -550,11 +571,7 @@
             if (!token) { notify('Enter a bot token', true); return; }
 
             try {
-                const res = await fetch('/api/services/telegram/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
-                });
+                const res = await fetch('/api/services/telegram/token', authFetchOpts('POST', { token }));
                 const data = await res.json();
                 if (data.error) {
                     notify(data.error, true);
@@ -589,7 +606,7 @@
 
         async function startService(name) {
             try {
-                const res = await fetch(`/api/services/${name}/start`, { method: 'POST' });
+                const res = await fetch(`/api/services/${name}/start`, authFetchOpts());
                 const data = await res.json();
                 if (data.error) { notify(data.error, true); } else { notify(`${data.name} started`); }
                 loadServices();
@@ -598,7 +615,7 @@
 
         async function stopService(name) {
             try {
-                const res = await fetch(`/api/services/${name}/stop`, { method: 'POST' });
+                const res = await fetch(`/api/services/${name}/stop`, authFetchOpts());
                 const data = await res.json();
                 notify(`${data.name} stopped`);
                 loadServices();
@@ -608,7 +625,7 @@
         async function disconnectService(name) {
             if (!confirm(`Disconnect ${name}? This will stop the service and clear its session.`)) return;
             try {
-                const res = await fetch(`/api/services/${name}/disconnect`, { method: 'POST' });
+                const res = await fetch(`/api/services/${name}/disconnect`, authFetchOpts());
                 const data = await res.json();
                 notify(`${data.name} disconnected (cleared: ${data.cleared.join(', ')})`);
                 await pollAuth();
@@ -679,11 +696,7 @@
 
         async function quickAddGroup(groupId, groupName) {
             try {
-                const res = await fetch('/api/groups', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ platform: currentPlatform, group_id: groupId, group_name: groupName, is_dm: false })
-                });
+                const res = await fetch('/api/groups', authFetchOpts('POST', { platform: currentPlatform, group_id: groupId, group_name: groupName, is_dm: false }));
                 const data = await res.json();
                 if (data.error) { notify(data.error, true); } else {
                     notify(`Added: ${groupName || groupId}`);
@@ -722,11 +735,7 @@
 
         async function toggleGroup(id, active) {
             try {
-                await fetch(`/api/groups/${id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ is_active: active })
-                });
+                await fetch(`/api/groups/${id}`, authFetchOpts('PATCH', { is_active: active }));
                 notify(active ? 'Group activated' : 'Group deactivated');
             } catch (e) { notify('Failed to update group', true); loadGroups(); }
         }
@@ -734,7 +743,7 @@
         async function deleteGroup(id) {
             if (!confirm('Delete this group?')) return;
             try {
-                await fetch(`/api/groups/${id}`, { method: 'DELETE' });
+                await fetch(`/api/groups/${id}`, authFetchOpts('DELETE'));
                 notify('Group deleted');
                 loadGroups();
             } catch (e) { notify('Failed to delete group', true); }
@@ -747,11 +756,7 @@
             if (!groupId) { notify('Group ID is required', true); return; }
 
             try {
-                const res = await fetch('/api/groups', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ platform: currentPlatform, group_id: groupId, group_name: name, is_dm: isDm })
-                });
+                const res = await fetch('/api/groups', authFetchOpts('POST', { platform: currentPlatform, group_id: groupId, group_name: name, is_dm: isDm }));
                 const data = await res.json();
                 if (data.error) { notify(data.error, true); } else {
                     notify('Group added');
@@ -773,6 +778,7 @@
 
         // ===== Init =====
         async function init() {
+            await loadApiKey();
             await pollAuth();
             loadServices();
             loadGroups();

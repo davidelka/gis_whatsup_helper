@@ -4,6 +4,7 @@ import {
     loadConfig,
     getPythonServiceUrl,
     getTelegramToken,
+    getApiKey,
     logger,
     PythonServiceClient,
     Config,
@@ -13,7 +14,10 @@ import { TelegramMessageHandler } from './messageHandler';
 
 /** Fire-and-forget POST auth state to management server */
 function postAuth(baseUrl: string, data: Record<string, any>) {
-    axios.post(`${baseUrl}/api/services/telegram/auth`, data, { timeout: 3000 }).catch(() => {});
+    const headers: Record<string, string> = {};
+    const key = getApiKey();
+    if (key) headers['X-API-Key'] = key;
+    axios.post(`${baseUrl}/api/services/telegram/auth`, data, { timeout: 3000, headers }).catch(() => {});
 }
 
 async function startBot() {
@@ -36,7 +40,7 @@ async function startBot() {
         process.exit(1);
     }
 
-    const pythonClient = new PythonServiceClient(pythonServiceUrl);
+    const pythonClient = new PythonServiceClient(pythonServiceUrl, getApiKey());
 
     // Fetch target groups from management server
     let targetGroupIds = new Set<string>();
@@ -78,9 +82,12 @@ async function startBot() {
         if (chat.type !== 'private' && !discoveredGroupIds.has(chatId)) {
             discoveredGroupIds.add(chatId);
             const groupName = 'title' in chat ? chat.title || chatId : chatId;
+            const discHeaders: Record<string, string> = {};
+            const discKey = getApiKey();
+            if (discKey) discHeaders['X-API-Key'] = discKey;
             axios.post(`${pythonServiceUrl}/api/services/telegram/discovered-groups`, {
                 group: { id: chatId, name: groupName }
-            }, { timeout: 3000 }).then(() => {
+            }, { timeout: 3000, headers: discHeaders }).then(() => {
                 logger.info({ chatId, groupName }, 'Discovered group reported to management server');
             }).catch((err: any) => {
                 logger.warn({ chatId, error: err.message }, 'Failed to report discovered group');

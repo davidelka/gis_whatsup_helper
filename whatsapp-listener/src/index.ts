@@ -3,12 +3,15 @@ import * as qrcode from 'qrcode-terminal';
 import * as path from 'path';
 import axios from 'axios';
 
-import { loadConfig, getPythonServiceUrl, logger, PythonServiceClient, Config, withTimeout } from '@gis-bot/shared';
+import { loadConfig, getPythonServiceUrl, getApiKey, logger, PythonServiceClient, Config, withTimeout } from '@gis-bot/shared';
 import { MessageHandler } from './messageHandler';
 
 /** Fire-and-forget POST auth state to management server */
 function postAuth(baseUrl: string, data: Record<string, any>) {
-    axios.post(`${baseUrl}/api/services/whatsapp/auth`, data, { timeout: 3000 }).catch(() => {});
+    const headers: Record<string, string> = {};
+    const key = getApiKey();
+    if (key) headers['X-API-Key'] = key;
+    axios.post(`${baseUrl}/api/services/whatsapp/auth`, data, { timeout: 3000, headers }).catch(() => {});
 }
 
 async function startBot(): Promise<Client> {
@@ -23,7 +26,7 @@ async function startBot(): Promise<Client> {
     }
 
     const pythonServiceUrl = getPythonServiceUrl(config);
-    const pythonClient = new PythonServiceClient(pythonServiceUrl);
+    const pythonClient = new PythonServiceClient(pythonServiceUrl, getApiKey());
 
     // Fetch target groups from management server
     let targetGroups = new Set<string>();
@@ -148,9 +151,12 @@ async function startBot(): Promise<Client> {
                 id: g.id._serialized,
                 name: g.name,
             }));
+            const discHeaders: Record<string, string> = {};
+            const discKey = getApiKey();
+            if (discKey) discHeaders['X-API-Key'] = discKey;
             axios.post(`${pythonServiceUrl}/api/services/whatsapp/discovered-groups`, {
                 groups: discoveredGroups
-            }, { timeout: 5000 }).catch(() => {});
+            }, { timeout: 5000, headers: discHeaders }).catch(() => {});
 
             logger.info({ count: allGroups.length }, 'Discovered groups reported to management server');
 

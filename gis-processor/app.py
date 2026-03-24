@@ -8,9 +8,10 @@ that belong at the application level (/health, /media/<filename>).
 import atexit
 import os
 import sys
+import functools
 
 import yaml
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 # Ensure the gis-processor package root is on sys.path when the file is
@@ -68,12 +69,22 @@ def create_app() -> Flask:
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     service_manager = ServiceManager(project_root)
 
+    # --- Load API key from .env ---
+    env_path = os.path.join(project_root, '.env')
+    api_key = None
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                if line.strip().startswith('API_KEY='):
+                    api_key = line.strip().split('=', 1)[1].strip()
+
     # --- Shared state on app.config so blueprints can reach it via current_app ---
     app.config['ENGINE'] = engine
     app.config['CONFIG'] = config
     app.config['MEDIA_DIR'] = media_dir
     app.config['EXPORT_DIR'] = export_dir
     app.config['SERVICE_MANAGER'] = service_manager
+    app.config['API_KEY'] = api_key
 
     # --- Register blueprints ---
     app.register_blueprint(data_bp)

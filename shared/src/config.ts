@@ -110,6 +110,10 @@ export function getTelegramToken(): string | undefined {
     return process.env.TELEGRAM_BOT_TOKEN;
 }
 
+export function getApiKey(): string | undefined {
+    return process.env.API_KEY;
+}
+
 export function getPythonServiceUrl(config: Config): string {
     return `http://${config.python_service.host}:${config.python_service.port}`;
 }

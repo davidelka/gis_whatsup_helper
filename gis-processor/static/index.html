@@ -582,6 +582,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+        function escAttr(s) { return esc(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
+
         // Define Base Layers
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -882,27 +885,27 @@
                     if (props._type === 'track') {
                         popupContent = `
                         <div class="popup-content" dir="rtl">
-                            <h3>🛤️ ${props.name || 'מסלול ללא שם'}</h3>
-                            <p><strong>קבוצה:</strong> ${props.group_name || 'לא ידוע'}</p>
-                            <p><strong>זמן:</strong> ${date}</p>
-                            <p><strong>מקור:</strong> ${props.source_filename || 'לא ידוע'}</p>
-                            ${props.description ? `<div class="report-text">${props.description}</div>` : ''}
+                            <h3>🛤️ ${esc(props.name) || 'מסלול ללא שם'}</h3>
+                            <p><strong>קבוצה:</strong> ${esc(props.group_name) || 'לא ידוע'}</p>
+                            <p><strong>זמן:</strong> ${esc(date)}</p>
+                            <p><strong>מקור:</strong> ${esc(props.source_filename) || 'לא ידוע'}</p>
+                            ${props.description ? `<div class="report-text">${esc(props.description)}</div>` : ''}
                         </div>`;
                     } else {
                         popupContent = `
                         <div class="popup-content" dir="rtl">
-                            <h3>${props.sender_name || 'דיווח ללא שם'}</h3>
-                            <p><strong>קבוצה:</strong> ${props.group_name || 'לא ידוע'}</p>
-                            <p><strong>זמן:</strong> ${date}</p>
-                            ${props.address ? `<p><strong>כתובת:</strong> ${props.address}</p>` : ''}
+                            <h3>${esc(props.sender_name) || 'דיווח ללא שם'}</h3>
+                            <p><strong>קבוצה:</strong> ${esc(props.group_name) || 'לא ידוע'}</p>
+                            <p><strong>זמן:</strong> ${esc(date)}</p>
+                            ${props.address ? `<p><strong>כתובת:</strong> ${esc(props.address)}</p>` : ''}
                             ${props.media_url ? `
                                 <div style="margin-top: 10px; border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
-                                    <img src="${props.media_url}" style="width: 100%; display: block; cursor: zoom-in;" onclick="window.open('${props.media_url}', '_blank')">
+                                    <img src="${escAttr(props.media_url)}" style="width: 100%; display: block; cursor: zoom-in;" onclick="window.open('${escAttr(props.media_url)}', '_blank')">
                                 </div>
                             ` : ''}
                             ${props.report_text ? `
-                                <div class="report-text">${props.report_text}</div>
-                            ` : (props.caption ? `<p class="report-text">${props.caption}</p>` : '<p><i>אין תוכן הודעה מצורף</i></p>')}
+                                <div class="report-text">${esc(props.report_text)}</div>
+                            ` : (props.caption ? `<p class="report-text">${esc(props.caption)}</p>` : '<p><i>אין תוכן הודעה מצורף</i></p>')}
                         </div>`;
                     }
 
@@ -954,8 +957,8 @@
                     <div class="tags-container" onclick="event.stopPropagation()">
                         ${reportTags.map(tag => `
                             <span class="tag-badge">
-                                🏷️ ${tag}
-                                <span class="remove-tag" onclick="removeTag('${report.report_id}', '${tag}', event)">×</span>
+                                🏷️ ${esc(tag)}
+                                <span class="remove-tag" onclick="removeTag('${escAttr(report.report_id)}', '${escAttr(tag)}', event)">×</span>
                             </span>
                         `).join('')}
                     </div>
@@ -965,14 +968,14 @@
                 <div style="display: flex; gap: 12px; align-items: flex-start;">
                     <div style="flex: 1; min-width: 0;">
                         <span class="sender">
-                            ${report.sender_name || 'אנונימי'}
+                            ${esc(report.sender_name) || 'אנונימי'}
                             ${!hasLocation ? '<span class="status-badge badge-no-location">ללא מיקום</span>' : ''}
                             ${!isVisible ? '<span class="status-badge badge-hidden">מוסתר</span>' : ''}
                         </span>
-                        <div class="meta">${date} | ${report.group_name || 'ללא קבוצה'}</div>
+                        <div class="meta">${esc(date)} | ${esc(report.group_name) || 'ללא קבוצה'}</div>
                         ${tagsHtml}
                         <div class="snippet" style="max-height: 48px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
-                            ${snippet}
+                            ${esc(snippet)}
                         </div>
 
                         ${hasLocation ? `
@@ -982,19 +985,19 @@
                         ` : ''}
 
                         <div class="tag-input-wrapper" onclick="event.stopPropagation()">
-                            <input type="text" class="tag-input" placeholder="הוסף תג..." id="tag-input-${report.report_id}" list="tag-suggestions" onkeypress="if(event.key==='Enter'){addTag('${report.report_id}');event.preventDefault();}">
-                            <button class="tag-add-btn" onclick="addTag('${report.report_id}')">הוסף</button>
+                            <input type="text" class="tag-input" placeholder="הוסף תג..." id="tag-input-${escAttr(report.report_id)}" list="tag-suggestions" onkeypress="if(event.key==='Enter'){addTag('${escAttr(report.report_id)}');event.preventDefault();}">
+                            <button class="tag-add-btn" onclick="addTag('${escAttr(report.report_id)}')">הוסף</button>
                         </div>
 
                         <div class="card-actions">
-                            <button class="action-btn" title="${isVisible ? 'הסתר מהמפה' : 'הצג במפה'}" onclick="toggleVisibility(event, '${report.report_id}', ${isVisible})">
+                            <button class="action-btn" title="${isVisible ? 'הסתר מהמפה' : 'הצג במפה'}" onclick="toggleVisibility(event, '${escAttr(report.report_id)}', ${isVisible})">
                                 ${isVisible ? `
                                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                                 ` : `
                                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                                 `}
                             </button>
-                            <button class="action-btn delete" title="מחק דיווח" onclick="deleteReport(event, '${report.report_id}')">
+                            <button class="action-btn delete" title="מחק דיווח" onclick="deleteReport(event, '${escAttr(report.report_id)}')">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                             </button>
                         </div>
@@ -1137,7 +1140,7 @@
                 datalist.id = 'tag-suggestions';
                 document.body.appendChild(datalist);
             }
-            datalist.innerHTML = tags.map(tag => `<option value="${tag}">`).join('');
+            datalist.innerHTML = tags.map(tag => `<option value="${escAttr(tag)}">`).join('');
         }
 
         function exportData(format) {

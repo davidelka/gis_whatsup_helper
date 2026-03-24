@@ -1,6 +1,7 @@
 """
 GIS export utilities for converting location data to various GIS formats.
 """
+import html
 import os
 import tempfile
 import zipfile
@@ -34,14 +35,14 @@ def locations_to_geodataframe(locations: List[Location]) -> gpd.GeoDataFrame:
     for loc in locations:
         # Create a rich description for KML/GIS
         desc_parts = [
-            f"<b>Sender:</b> {loc.sender_name or 'Unknown'}",
-            f"<b>Group:</b> {loc.group_name or 'Private'}",
+            f"<b>Sender:</b> {html.escape(loc.sender_name or 'Unknown')}",
+            f"<b>Group:</b> {html.escape(loc.group_name or 'Private')}",
             f"<b>Time:</b> {loc.timestamp.strftime('%Y-%m-%d %H:%M:%S') if loc.timestamp else 'N/A'}"
         ]
         if loc.report_text:
-            desc_parts.append(f"<br><b>Content:</b><br>{loc.report_text}")
+            desc_parts.append(f"<br><b>Content:</b><br>{html.escape(loc.report_text)}")
         if loc.address:
-            desc_parts.append(f"<br><b>Address:</b> {loc.address}")
+            desc_parts.append(f"<br><b>Address:</b> {html.escape(loc.address)}")
         
         description = "<br>".join(desc_parts)
 
@@ -101,8 +102,8 @@ def reports_to_geodataframe(reports: List[Report]) -> gpd.GeoDataFrame:
             
             # Rich HTML Description for KML
             html_desc_parts = [
-                f"<b>Sender:</b> {report.sender_name or 'Unknown'}",
-                f"<b>Status:</b> {report.status}",
+                f"<b>Sender:</b> {html.escape(report.sender_name or 'Unknown')}",
+                f"<b>Status:</b> {html.escape(report.status or '')}",
                 f"<b>Time:</b> {report.started_at.strftime('%Y-%m-%d %H:%M') if report.started_at else 'N/A'}",
                 f"<b>Messages:</b> {report.message_count}",
                 f"<br><b>Full Report:</b><br>{report_text.replace(chr(10), '<br>')}"

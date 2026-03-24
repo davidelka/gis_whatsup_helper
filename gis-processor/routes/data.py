@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, current_app
+from auth import require_api_key
 
 from models import Message, Location, Report, get_session
 
@@ -23,6 +24,8 @@ data_bp = Blueprint('data', __name__)
 # Helper functions
 # ---------------------------------------------------------------------------
 
+MAX_MEDIA_SIZE = 20 * 1024 * 1024  # 20MB
+
 def save_media_from_data(data: dict) -> str | None:
     """Save base64 media data to disk and return the relative path."""
     if not data.get('mediaData'):
@@ -31,8 +34,24 @@ def save_media_from_data(data: dict) -> str | None:
     try:
         media_dir = current_app.config['MEDIA_DIR']
         media_data = base64.b64decode(data['mediaData'])
-        filename = f"{uuid.uuid4()}_{data.get('mediaFilename', 'image.jpg')}"
+
+        if len(media_data) > MAX_MEDIA_SIZE:
+            current_app.logger.warning(f"Media too large: {len(media_data)} bytes, skipping")
+            return None
+
+        # Sanitize filename: use only the extension from user input
+        original = data.get('mediaFilename', 'image.jpg')
+        ext = os.path.splitext(original)[1][:10]  # Max 10 char extension
+        if not ext:
+            ext = '.jpg'
+        filename = f"{uuid.uuid4()}{ext}"
         file_path = os.path.join(media_dir, filename)
+
+        # Verify path doesn't escape media_dir
+        real_path = os.path.realpath(file_path)
+        if not real_path.startswith(os.path.realpath(media_dir)):
+            current_app.logger.warning(f"Path traversal attempt: {file_path}")
+            return None
 
         with open(file_path, 'wb') as f:
             f.write(media_data)
@@ -98,6 +117,7 @@ def filter_locations_by_tag(locations: list, tag: str) -> list:
 # ---------------------------------------------------------------------------
 
 @data_bp.route('/message', methods=['POST'])
+@require_api_key
 def receive_message():
     """Receive a message from the WhatsApp listener."""
     try:
@@ -180,10 +200,12 @@ def receive_message():
 
     except Exception as e:
         current_app.logger.error(f"Error processing message: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @data_bp.route('/report', methods=['POST'])
+@require_api_key
 def receive_report():
     """Receive a report from the WhatsApp listener (messages between תד and סד)."""
     try:
@@ -319,7 +341,8 @@ def receive_report():
 
     except Exception as e:
         current_app.logger.error(f"Error processing report: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +428,7 @@ def get_report(report_id):
 # ---------------------------------------------------------------------------
 
 @data_bp.route('/api/reports/<report_id>', methods=['PATCH'])
+@require_api_key
 def update_report(report_id):
     """Update report properties (visibility, tag, etc.)."""
     engine = current_app.config['ENGINE']
@@ -449,6 +473,7 @@ def update_report(report_id):
 
 
 @data_bp.route('/api/reports/<report_id>', methods=['DELETE'])
+@require_api_key
 def delete_report(report_id):
     """Delete a report and its associated location."""
     engine = current_app.config['ENGINE']
@@ -475,6 +500,7 @@ def delete_report(report_id):
 # ---------------------------------------------------------------------------
 
 @data_bp.route('/api/locations/<int:loc_id>', methods=['PATCH'])
+@require_api_key
 def toggle_location_visibility(loc_id):
     """Toggle the visibility of a specific location."""
     engine = current_app.config['ENGINE']
@@ -496,6 +522,7 @@ def toggle_location_visibility(loc_id):
 
 
 @data_bp.route('/api/locations/<int:loc_id>', methods=['DELETE'])
+@require_api_key
 def delete_location(loc_id):
     """Delete a specific location."""
     engine = current_app.config['ENGINE']
