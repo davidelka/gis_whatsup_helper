@@ -7,6 +7,16 @@ import { loadConfig, getTargetGroupIds, Config } from './config';
 import { MessageHandler } from './messageHandler';
 import { logger } from './logger';
 
+/** Race a promise against a timeout. Rejects with Error on timeout. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+        )
+    ]);
+}
+
 async function startBot(): Promise<Client> {
     // Load configuration
     let config: Config;
@@ -30,8 +40,15 @@ async function startBot(): Promise<Client> {
     // Create WhatsApp client
     const client = new Client({
         authStrategy: new LocalAuth({
-            dataPath: path.resolve(__dirname, '../auth_info')
+            clientId: 'gis-bot',
+            dataPath: path.resolve(__dirname, '../auth_info'),
+            // Recover from session lock conflicts (prevents silent hangs)
         }),
+        webVersionCache: {
+            type: 'none',
+        },
+        takeoverOnConflict: true,
+        takeoverTimeoutMs: 10000,
         puppeteer: {
             executablePath: '/snap/bin/chromium',
             headless: true,
@@ -42,22 +59,48 @@ async function startBot(): Promise<Client> {
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
-                '--disable-gpu'
+                '--disable-extensions',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--mute-audio',
+                '--disable-features=site-per-process',
+                '--disable-gl-drawing-for-tests'
             ],
             handleSIGINT: false,
-            protocolTimeout: 0, // Disable protocol timeout for accounts with many chats
+            protocolTimeout: 60000,        // 60s protocol timeout (was 0 = infinite, causing silent hangs)
         }
     });
 
     // Link client to message handler
     messageHandler.setClient(client);
 
+    // Startup watchdog: if neither 'qr' nor 'ready' fires within 90s, bail out with a clear error
+    let startupResolved = false;
+    const startupWatchdog = setTimeout(() => {
+        if (!startupResolved) {
+            logger.error(
+                'Startup watchdog: no QR or ready event within 90 seconds. ' +
+                'Possible causes: stale auth_info session, lingering Chromium process, ' +
+                'or whatsapp-web.js incompatibility with current WhatsApp Web version. ' +
+                'Try: rm -rf auth_info/session && npm run dev'
+            );
+            process.exit(1);
+        }
+    }, 90000);
+
     // QR Code display
     client.on('qr', (qr) => {
+        startupResolved = true;
+        clearTimeout(startupWatchdog);
         logger.info('Scan the QR code below with your WhatsApp app:');
         console.log('\n');
         qrcode.generate(qr, { small: true });
         console.log('\n');
+    });
+
+    // Log loading screen progress (helps diagnose where it freezes)
+    client.on('loading_screen', (percent, message) => {
+        logger.info({ percent, message }, 'Loading WhatsApp Web...');
     });
 
     // Authentication
@@ -71,12 +114,21 @@ async function startBot(): Promise<Client> {
 
     // Connection
     client.on('ready', async () => {
+        startupResolved = true;
+        clearTimeout(startupWatchdog);
         logger.info('✅ WhatsApp GIS Listener is ready!');
 
         // List all groups for discovery
+        // Delay to let WhatsApp Web internal stores finish initializing
+        await new Promise(resolve => setTimeout(resolve, 5000));
         try {
             logger.info('Searching for groups specified in config (this may take a while if you have many chats)...');
-            const chats = await client.getChats();
+            const chats = await Promise.race([
+                client.getChats(),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('getChats() timed out after 15s')), 15000)
+                )
+            ]);
             const allGroups = chats.filter(chat => chat.isGroup);
 
             logger.info('--- Group Discovery ---');
@@ -100,6 +152,28 @@ async function startBot(): Promise<Client> {
         }
 
         logger.info('Listening for messages from configured groups...');
+
+        // Re-attach message listener on the current Store.Msg instance.
+        // The library's attachEventListeners() runs before Store.Msg is finalized,
+        // so its 'add' listener is on a stale collection reference.
+        try {
+            await (client as any).pupPage.evaluate(new Function(`
+                window.Store.Msg.on('add', function(msg) {
+                    if (msg.isNewMsg) {
+                        if (msg.type === 'ciphertext') {
+                            msg.once('change:type', function(_msg) {
+                                window.onAddMessageEvent(window.WWebJS.getMessageModel(_msg));
+                            });
+                        } else {
+                            window.onAddMessageEvent(window.WWebJS.getMessageModel(msg));
+                        }
+                    }
+                });
+            `));
+            logger.info('Re-attached Store.Msg listener on final collection instance');
+        } catch (e: any) {
+            logger.error({ error: e.message }, 'Failed to re-attach Store.Msg listener');
+        }
     });
 
     client.on('disconnected', (reason) => {
@@ -108,10 +182,24 @@ async function startBot(): Promise<Client> {
 
     // Handle incoming and outgoing messages (for discovery and processing)
     client.on('message_create', async (msg: Message) => {
+        // Log all incoming events (temporarily info-level for diagnostics)
+        logger.info({
+            fromMe: msg.fromMe,
+            from: msg.from,
+            type: msg.type,
+            body: msg.body?.substring(0, 20)
+        }, 'message_create event received');
+
         // In groups, msg.from is usually the group ID for incoming messages.
         // For outgoing messages, msg.to is the group ID.
         // We check both to find the group context.
-        const chat = await msg.getChat();
+        let chat;
+        try {
+            chat = await withTimeout(msg.getChat(), 8000, 'msg.getChat()');
+        } catch (e: any) {
+            logger.warn({ error: e.message, from: msg.from }, 'Skipping message: getChat() timed out or failed');
+            return;
+        }
         const groupId = chat.isGroup ? chat.id._serialized : null;
 
         if (groupId) {
@@ -119,7 +207,6 @@ async function startBot(): Promise<Client> {
             logger.info({
                 groupId,
                 groupName: chat.name,
-                fromMe: msg.fromMe,
                 messageType: msg.type,
                 body: msg.body?.substring(0, 20)
             }, 'Group message detected');

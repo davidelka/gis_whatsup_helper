@@ -13,7 +13,7 @@ import yaml
 # Add the current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models import Message, Location, Report, init_db, get_session, get_engine
+from models import Message, Location, Report, Track, init_db, get_session, get_engine
 from gis_export import (
     export_to_geojson, 
     export_to_shapefile, 
@@ -301,14 +301,17 @@ def list_reports():
     """List all stored reports."""
     session = get_session(engine)
     try:
-        # Filter by status if provided
+        # Filter by status and/or sender_id if provided
         status_filter = request.args.get('status')
-        
+        sender_id_filter = request.args.get('sender_id')
+
         query = session.query(Report).order_by(Report.started_at.desc())
-        
+
         if status_filter:
             query = query.filter_by(status=status_filter)
-        
+        if sender_id_filter:
+            query = query.filter_by(sender_id=sender_id_filter)
+
         reports = query.limit(100).all()
         
         return jsonify({
@@ -335,28 +338,45 @@ def get_report(report_id):
 
 
 @app.route('/api/reports/<report_id>', methods=['PATCH'])
-def toggle_report_visibility(report_id):
-    """Toggle the visibility of a report and its associated location."""
+def update_report(report_id):
+    """Update report properties (visibility, tag, etc.)."""
     session = get_session(engine)
     try:
         report = session.query(Report).filter_by(report_id=report_id).first()
         if not report:
             return jsonify({'error': 'Report not found'}), 404
-        
+
         data = request.get_json()
+        updated = False
+
         if 'is_visible' in data:
             new_visibility = bool(data['is_visible'])
             report.is_visible = new_visibility
-            
+
             # Toggle visibility of ALL associated locations
             locations = session.query(Location).filter_by(report_id=report_id).all()
             for loc in locations:
                 loc.is_visible = new_visibility
-            
+            updated = True
+
+        if 'tags' in data:
+            new_tags = data['tags'] if data['tags'] else []
+            # Ensure it's a list
+            if isinstance(new_tags, str):
+                new_tags = [new_tags] if new_tags else []
+            report.set_tags(new_tags)
+
+            # Update tags on ALL associated locations
+            locations = session.query(Location).filter_by(report_id=report_id).all()
+            for loc in locations:
+                loc.set_tags(new_tags)
+            updated = True
+
+        if updated:
             session.commit()
-            return jsonify({'status': 'success', 'is_visible': report.is_visible})
-        
-        return jsonify({'error': 'No visibility data provided'}), 400
+            return jsonify({'status': 'success', 'is_visible': report.is_visible, 'tags': report.get_tags()})
+
+        return jsonify({'error': 'No valid data provided'}), 400
     finally:
         session.close()
 
@@ -434,16 +454,69 @@ def list_messages():
 
 @app.route('/locations', methods=['GET'])
 def list_locations():
-    """List all stored locations."""
+    """List all stored locations. Supports optional group and from_date/to_date filters."""
     session = get_session(engine)
     try:
-        locations = session.query(Location).order_by(Location.timestamp.desc()).all()
+        query = session.query(Location).order_by(Location.timestamp.desc())
+        query = apply_location_filters(query, request.args)
+        locations = query.all()
         return jsonify({
             'count': len(locations),
             'locations': [loc.to_dict() for loc in locations]
         })
     finally:
         session.close()
+
+
+def apply_location_filters(query, args):
+    """Apply filter parameters to a Location query."""
+    from datetime import datetime
+    import json
+
+    app.logger.info(f"Applying filters: {dict(args)}")
+
+    # Date filters
+    from_date = args.get('from_date')
+    to_date = args.get('to_date')
+    if from_date:
+        try:
+            from_dt = datetime.fromisoformat(from_date)
+            query = query.filter(Location.timestamp >= from_dt)
+            app.logger.info(f"Applied from_date filter: {from_dt}")
+        except Exception as e:
+            app.logger.warning(f"Failed to parse from_date: {e}")
+    if to_date:
+        try:
+            to_dt = datetime.fromisoformat(to_date + 'T23:59:59')
+            query = query.filter(Location.timestamp <= to_dt)
+            app.logger.info(f"Applied to_date filter: {to_dt}")
+        except Exception as e:
+            app.logger.warning(f"Failed to parse to_date: {e}")
+
+    # Tag filter - only handle "no tag" filter in SQL
+    # Specific tag filtering is done client-side after fetching
+    tag_filter = args.get('tag')
+    if tag_filter and tag_filter == '__no_tag__':
+        query = query.filter(Location.tags_json.is_(None))
+        app.logger.info("Applied no_tag filter")
+
+    # Group filter
+    group = args.get('group')
+    if group:
+        query = query.filter(Location.group_name == group)
+        app.logger.info(f"Applied group filter: {group}")
+
+    return query
+
+
+def filter_locations_by_tag(locations, tag):
+    """Filter locations by tag (client-side filtering for JSON arrays)."""
+    filtered = []
+    for loc in locations:
+        tags = loc.get_tags()
+        if tag in tags:
+            filtered.append(loc)
+    return filtered
 
 
 @app.route('/export/geojson', methods=['GET'])
@@ -453,13 +526,28 @@ def export_geojson():
     try:
         # Check if we should export only report locations
         reports_only = request.args.get('reports_only', 'false').lower() == 'true'
-        
+
+        # Start with base query
         query = session.query(Location).filter_by(is_visible=True)
+        base_count = query.count()
+        app.logger.info(f"Base visible locations count: {base_count}")
+
         if reports_only:
-            locations = query.filter(Location.report_id.isnot(None)).all()
-        else:
-            locations = query.all()
-        
+            query = query.filter(Location.report_id.isnot(None))
+            app.logger.info(f"After reports_only filter: {query.count()}")
+
+        # Apply additional filters
+        query = apply_location_filters(query, request.args)
+        locations = query.all()
+
+        # Apply tag filter client-side if needed
+        tag_filter = request.args.get('tag')
+        if tag_filter and tag_filter != '__no_tag__':
+            locations = filter_locations_by_tag(locations, tag_filter)
+            app.logger.info(f"After tag filter '{tag_filter}': {len(locations)} locations")
+
+        app.logger.info(f"Final filtered locations count: {len(locations)}")
+
         if not locations:
             return jsonify({'error': 'No visible locations to export'}), 404
         
@@ -508,8 +596,15 @@ def export_shapefile():
     """Export visible locations as Shapefile (ZIP)."""
     session = get_session(engine)
     try:
-        locations = session.query(Location).filter_by(is_visible=True).all()
-        
+        query = session.query(Location).filter_by(is_visible=True)
+        query = apply_location_filters(query, request.args)
+        locations = query.all()
+
+        # Apply tag filter client-side if needed
+        tag_filter = request.args.get('tag')
+        if tag_filter and tag_filter != '__no_tag__':
+            locations = filter_locations_by_tag(locations, tag_filter)
+
         if not locations:
             return jsonify({'error': 'No visible locations to export'}), 404
         
@@ -533,8 +628,15 @@ def export_kml():
     """Export visible locations as KML (Google Earth)."""
     session = get_session(engine)
     try:
-        locations = session.query(Location).filter_by(is_visible=True).all()
-        
+        query = session.query(Location).filter_by(is_visible=True)
+        query = apply_location_filters(query, request.args)
+        locations = query.all()
+
+        # Apply tag filter client-side if needed
+        tag_filter = request.args.get('tag')
+        if tag_filter and tag_filter != '__no_tag__':
+            locations = filter_locations_by_tag(locations, tag_filter)
+
         if not locations:
             return jsonify({'error': 'No visible locations to export'}), 404
         
@@ -556,8 +658,15 @@ def export_gpkg():
     """Export visible locations as GeoPackage."""
     session = get_session(engine)
     try:
-        locations = session.query(Location).filter_by(is_visible=True).all()
-        
+        query = session.query(Location).filter_by(is_visible=True)
+        query = apply_location_filters(query, request.args)
+        locations = query.all()
+
+        # Apply tag filter client-side if needed
+        tag_filter = request.args.get('tag')
+        if tag_filter and tag_filter != '__no_tag__':
+            locations = filter_locations_by_tag(locations, tag_filter)
+
         if not locations:
             return jsonify({'error': 'No visible locations to export'}), 404
         
@@ -576,6 +685,285 @@ def export_gpkg():
         session.close()
 
 
+@app.route('/export/map-image', methods=['GET'])
+def export_map_image():
+    """Generate a static PNG map image with location markers and tracks."""
+    from staticmap import StaticMap, CircleMarker, Line
+    import io
+    import json as json_mod
+    from shapely.geometry import shape as shapely_shape
+
+    session = get_session(engine)
+    try:
+        query = session.query(Location).filter_by(is_visible=True)
+        query = apply_location_filters(query, request.args)
+        locations = query.all()
+
+        tag_filter = request.args.get('tag')
+        if tag_filter and tag_filter != '__no_tag__':
+            locations = filter_locations_by_tag(locations, tag_filter)
+
+        # Fetch tracks with same filters
+        track_query = session.query(Track).filter_by(is_visible=True)
+        group_filter = request.args.get('group')
+        if group_filter:
+            track_query = track_query.filter(Track.group_name == group_filter)
+        from_date = request.args.get('from_date')
+        if from_date:
+            try:
+                from_dt = datetime.fromisoformat(from_date)
+                track_query = track_query.filter(Track.timestamp >= from_dt)
+            except:
+                pass
+        to_date = request.args.get('to_date')
+        if to_date:
+            try:
+                to_dt = datetime.fromisoformat(to_date + 'T23:59:59')
+                track_query = track_query.filter(Track.timestamp <= to_dt)
+            except:
+                pass
+        tracks = track_query.all()
+
+        if not locations and not tracks:
+            return jsonify({'error': 'No visible locations to export'}), 404
+
+        m = StaticMap(800, 600, url_template='https://tile.openstreetmap.org/{z}/{x}/{y}.png')
+        for loc in locations:
+            marker = CircleMarker((loc.longitude, loc.latitude), 'red', 10)
+            m.add_marker(marker)
+
+        for track in tracks:
+            geom = shapely_shape(json_mod.loads(track.geometry_json))
+            if geom.geom_type == 'LineString':
+                coords = [(c[0], c[1]) for c in geom.coords]
+                m.add_line(Line(coords, '#FF6B35', 3))
+            elif geom.geom_type == 'MultiLineString':
+                for line in geom.geoms:
+                    coords = [(c[0], c[1]) for c in line.coords]
+                    m.add_line(Line(coords, '#FF6B35', 3))
+
+        image = m.render()
+        buf = io.BytesIO()
+        image.save(buf, format='PNG')
+        buf.seek(0)
+
+        return send_file(buf, mimetype='image/png', download_name='map.png')
+    finally:
+        session.close()
+
+
+@app.route('/export/map-html', methods=['GET'])
+def export_map_html():
+    """Generate a self-contained HTML file with an interactive Leaflet map (points + tracks)."""
+    import json as json_mod
+
+    session = get_session(engine)
+    try:
+        query = session.query(Location).filter_by(is_visible=True)
+        query = apply_location_filters(query, request.args)
+        locations = query.all()
+
+        tag_filter = request.args.get('tag')
+        if tag_filter and tag_filter != '__no_tag__':
+            locations = filter_locations_by_tag(locations, tag_filter)
+
+        # Fetch tracks with same filters
+        track_query = session.query(Track).filter_by(is_visible=True)
+        group_filter = request.args.get('group')
+        if group_filter:
+            track_query = track_query.filter(Track.group_name == group_filter)
+        from_date = request.args.get('from_date')
+        if from_date:
+            try:
+                from_dt = datetime.fromisoformat(from_date)
+                track_query = track_query.filter(Track.timestamp >= from_dt)
+            except:
+                pass
+        to_date = request.args.get('to_date')
+        if to_date:
+            try:
+                to_dt = datetime.fromisoformat(to_date + 'T23:59:59')
+                track_query = track_query.filter(Track.timestamp <= to_dt)
+            except:
+                pass
+        tracks = track_query.all()
+
+        if not locations and not tracks:
+            return jsonify({'error': 'No visible locations to export'}), 404
+
+        points = []
+        for loc in locations:
+            points.append({
+                'lat': loc.latitude,
+                'lng': loc.longitude,
+                'name': loc.name or loc.sender_name or f'Location {loc.id}',
+                'sender': loc.sender_name or '',
+                'time': loc.timestamp.strftime('%H:%M') if loc.timestamp else '',
+                'address': loc.address or '',
+            })
+
+        track_data = []
+        for t in tracks:
+            track_data.append({
+                'name': t.name or 'מסלול',
+                'source': t.source_filename or '',
+                'geometry': json_mod.loads(t.geometry_json),
+            })
+
+        points_json = json_mod.dumps(points, ensure_ascii=False)
+        tracks_json = json_mod.dumps(track_data, ensure_ascii=False)
+        html = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Map Export</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+<style>html,body,#map{{margin:0;padding:0;height:100%}}</style>
+</head><body>
+<div id="map"></div>
+<script>
+var points = {points_json};
+var tracks = {tracks_json};
+var map = L.map('map');
+L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',{{
+  attribution:'&copy; OpenStreetMap contributors',maxZoom:19}}).addTo(map);
+var bounds = [];
+points.forEach(function(p){{
+  var marker = L.marker([p.lat,p.lng]).addTo(map);
+  marker.bindPopup('<b>'+p.name+'</b><br>'+p.sender+'<br>'+p.time+'<br>'+p.address);
+  bounds.push([p.lat,p.lng]);
+}});
+tracks.forEach(function(t){{
+  var layer = L.geoJSON(t.geometry,{{style:{{color:'#FF6B35',weight:3,opacity:0.8}}}}).addTo(map);
+  layer.bindPopup('<b>'+t.name+'</b><br>'+t.source);
+  var b = layer.getBounds();
+  if(b.isValid()){{bounds.push([b.getSouthWest().lat,b.getSouthWest().lng]);bounds.push([b.getNorthEast().lat,b.getNorthEast().lng]);}}
+}});
+if(bounds.length>0)map.fitBounds(bounds,{{padding:[30,30]}});
+</script></body></html>'''
+
+        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    finally:
+        session.close()
+
+
+@app.route('/import/kml', methods=['POST'])
+def import_kml():
+    """Import a KML file — creates Location records for Points, Track records for LineStrings."""
+    import tempfile
+    import json as json_mod
+    import fiona
+    from shapely.geometry import shape
+
+    try:
+        data = request.get_json()
+        if not data or not data.get('kml_data'):
+            return jsonify({'error': 'No KML data provided'}), 400
+
+        kml_bytes = base64.b64decode(data['kml_data'])
+        filename = data.get('filename', 'import.kml')
+        group_id = data.get('group_id', '')
+        group_name = data.get('group_name')
+        sender_id = data.get('sender_id', '')
+        sender_name = data.get('sender_name')
+        tags = json_mod.dumps(['kml-import', filename])
+
+        session = get_session(engine)
+        points_imported = 0
+        tracks_imported = 0
+        details = []
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.kml', delete=False) as tmp:
+                tmp.write(kml_bytes)
+                tmp_path = tmp.name
+
+            # KML files can have multiple layers
+            for layer_name in fiona.listlayers(tmp_path):
+                with fiona.open(tmp_path, layer=layer_name) as src:
+                    for feature in src:
+                        geom = shape(feature['geometry'])
+                        props = feature.get('properties', {})
+                        feat_name = props.get('Name') or props.get('name') or ''
+                        feat_desc = props.get('Description') or props.get('description') or ''
+
+                        if geom.geom_type == 'Point':
+                            loc = Location(
+                                message_id=f"kml-import-{uuid.uuid4().hex[:12]}",
+                                latitude=geom.y,
+                                longitude=geom.x,
+                                name=feat_name or None,
+                                address=feat_desc or None,
+                                group_id=group_id,
+                                group_name=group_name,
+                                sender_id=sender_id,
+                                sender_name=sender_name,
+                                timestamp=datetime.utcnow(),
+                                tags_json=tags,
+                                report_text=f"Imported from {filename}",
+                            )
+                            session.add(loc)
+                            points_imported += 1
+                            details.append(f"Point: {feat_name or 'unnamed'}")
+
+                        elif geom.geom_type in ('LineString', 'MultiLineString'):
+                            track = Track(
+                                track_id=f"kml-import-{uuid.uuid4().hex[:12]}",
+                                name=feat_name or None,
+                                description=feat_desc or None,
+                                geometry_json=json_mod.dumps(geom.__geo_interface__),
+                                group_id=group_id,
+                                group_name=group_name,
+                                sender_id=sender_id,
+                                sender_name=sender_name,
+                                timestamp=datetime.utcnow(),
+                                source_filename=filename,
+                                tags_json=tags,
+                            )
+                            session.add(track)
+                            tracks_imported += 1
+                            details.append(f"Track: {feat_name or 'unnamed'}")
+
+            session.commit()
+
+            # Clean up temp file
+            os.unlink(tmp_path)
+
+            app.logger.info(f"KML import: {points_imported} points, {tracks_imported} tracks from {filename}")
+            return jsonify({
+                'status': 'success',
+                'points_imported': points_imported,
+                'tracks_imported': tracks_imported,
+                'details': details,
+            }), 201
+
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    except Exception as e:
+        app.logger.error(f"Error importing KML: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tags', methods=['GET'])
+def get_tags():
+    """Get all unique tags used in reports."""
+    session = get_session(engine)
+    try:
+        reports = session.query(Report).filter(Report.tags_json.isnot(None)).all()
+        all_tags = set()
+        for report in reports:
+            tags = report.get_tags()
+            all_tags.update(tags)
+        return jsonify({
+            'tags': sorted(list(all_tags))
+        })
+    finally:
+        session.close()
+
+
 @app.route('/stats', methods=['GET'])
 def get_stats():
     """Get statistics about stored data."""
@@ -586,7 +974,7 @@ def get_stats():
         report_count = session.query(Report).count()
         complete_reports = session.query(Report).filter_by(status='complete').count()
         invalid_reports = session.query(Report).filter_by(status='invalid').count()
-        
+
         # Get unique groups
         groups = session.query(Message.group_id, Message.group_name).distinct().all()
         
@@ -612,15 +1000,14 @@ def dashboard():
 
 @app.route('/api/geojson', methods=['GET'])
 def api_geojson():
-    """Live GeoJSON API for the dashboard."""
+    """Live GeoJSON API for the dashboard (points + tracks)."""
+    import json as json_mod
     session = get_session(engine)
     try:
         locations = session.query(Location).order_by(Location.timestamp.desc()).all()
-        
+
         features = []
         for loc in locations:
-            # We still include invisible ones in the API so the frontend can manage them, 
-            # but frontend will decide whether to draw them.
             features.append({
                 "type": "Feature",
                 "geometry": {
@@ -629,7 +1016,18 @@ def api_geojson():
                 },
                 "properties": loc.to_dict()
             })
-            
+
+        # Include tracks as LineString/MultiLineString features
+        tracks = session.query(Track).order_by(Track.timestamp.desc()).all()
+        for track in tracks:
+            props = track.to_dict()
+            props['_type'] = 'track'
+            features.append({
+                "type": "Feature",
+                "geometry": json_mod.loads(track.geometry_json),
+                "properties": props
+            })
+
         return jsonify({
             "type": "FeatureCollection",
             "features": features

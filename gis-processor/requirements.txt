@@ -8,3 +8,4 @@ sqlalchemy>=2.0.0
 pyyaml>=6.0.0
 python-dateutil>=2.8.0
 pyproj>=3.6.0
+staticmap>=0.5.7

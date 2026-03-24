@@ -69,9 +69,26 @@ class Location(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     report_text = Column(Text, nullable=True) # Full text if part of a report
     media_path = Column(String(500), nullable=True)
+    tags_json = Column(Text, nullable=True)  # Tags as JSON array for filtering
     is_visible = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
+    def get_tags(self) -> list:
+        """Get tags as a list."""
+        if self.tags_json:
+            try:
+                return json.loads(self.tags_json)
+            except:
+                return []
+        return []
+
+    def set_tags(self, tags: list):
+        """Set tags from a list."""
+        if tags:
+            self.tags_json = json.dumps(tags)
+        else:
+            self.tags_json = None
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -90,6 +107,59 @@ class Location(Base):
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
             'report_text': self.report_text,
             'media_url': f"/media/{os.path.basename(self.media_path)}" if self.media_path else None,
+            'tags': self.get_tags(),
+            'is_visible': self.is_visible,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class Track(Base):
+    """Store track/line geometries imported from KML or other GIS files."""
+    __tablename__ = 'tracks'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    track_id = Column(String(100), unique=True, nullable=False)
+    name = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    geometry_json = Column(Text, nullable=False)  # GeoJSON geometry (LineString/MultiLineString)
+    group_id = Column(String(100), nullable=False)
+    group_name = Column(String(255), nullable=True)
+    sender_id = Column(String(100), nullable=False)
+    sender_name = Column(String(255), nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    source_filename = Column(String(255), nullable=True)
+    tags_json = Column(Text, nullable=True)
+    is_visible = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def get_tags(self) -> list:
+        if self.tags_json:
+            try:
+                return json.loads(self.tags_json)
+            except:
+                return []
+        return []
+
+    def set_tags(self, tags: list):
+        if tags:
+            self.tags_json = json.dumps(tags)
+        else:
+            self.tags_json = None
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'track_id': self.track_id,
+            'name': self.name,
+            'description': self.description,
+            'geometry': json.loads(self.geometry_json) if self.geometry_json else None,
+            'group_id': self.group_id,
+            'group_name': self.group_name,
+            'sender_id': self.sender_id,
+            'sender_name': self.sender_name,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'source_filename': self.source_filename,
+            'tags': self.get_tags(),
             'is_visible': self.is_visible,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
@@ -119,20 +189,37 @@ class Report(Base):
     
     # Store all messages as JSON
     messages_json = Column(Text, nullable=True)
-    
+
+    tags_json = Column(Text, nullable=True)  # Tags as JSON array for filtering
     is_visible = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     def set_messages(self, messages: list):
         """Store messages as JSON."""
         self.messages_json = json.dumps(messages)
-    
+
     def get_messages(self) -> list:
         """Retrieve messages from JSON."""
         if self.messages_json:
             return json.loads(self.messages_json)
         return []
-    
+
+    def get_tags(self) -> list:
+        """Get tags as a list."""
+        if self.tags_json:
+            try:
+                return json.loads(self.tags_json)
+            except:
+                return []
+        return []
+
+    def set_tags(self, tags: list):
+        """Set tags from a list."""
+        if tags:
+            self.tags_json = json.dumps(tags)
+        else:
+            self.tags_json = None
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -151,6 +238,7 @@ class Report(Base):
             'location_name': self.location_name,
             'location_address': self.location_address,
             'messages': self.get_messages(),
+            'tags': self.get_tags(),
             'is_visible': self.is_visible,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

@@ -11,9 +11,9 @@ whatsapp:
     #   id: "987654321098765432@g.us"
     - name: "דקירות פארן"
       id: "120363404243096973@g.us"
-    - name: "נעלים"
+    - name: "עקבות פארן"
       id: "120363406931200969@g.us"
-    - name: "לז"
+    - name: "לז עזוז"
       id: "120363406827366979@g.us"
 python_service:
   host: "localhost"
