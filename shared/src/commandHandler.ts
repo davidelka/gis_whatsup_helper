@@ -141,7 +141,7 @@ export class CommandHandler {
             '*/last* (*/\u05d0\u05d7\u05e8\u05d5\u05df*) \u2014 \u05e1\u05d9\u05db\u05d5\u05dd \u05d4\u05d3\u05d9\u05d5\u05d5\u05d7 \u05d4\u05d0\u05d7\u05e8\u05d5\u05df',
             '*/quiet* (*/\u05e9\u05e7\u05d8*) \u2014 \u05de\u05e6\u05d1 \u05e9\u05e7\u05d8 (\u05d4\u05e4\u05e2\u05dc\u05d4/\u05db\u05d9\u05d1\u05d5\u05d9)',
             '*/export* (*/\u05d9\u05d9\u05e6\u05d5\u05d0*) \u2014 \u05d9\u05d9\u05e6\u05d5\u05d0 KML \u05e9\u05dc \u05d3\u05d9\u05d5\u05d5\u05d7\u05d9 \u05d4\u05d9\u05d5\u05dd',
-            '*/map* (*/\u05de\u05e4\u05d4*) \u2014 \u05ea\u05de\u05d5\u05e0\u05ea \u05de\u05e4\u05d4 \u05e2\u05dd \u05e0\u05e7\u05d5\u05d3\u05d5\u05ea \u05d4\u05d9\u05d5\u05dd',
+            '*/map* (*/\u05de\u05e4\u05d4*) \u2014 \u05ea\u05de\u05d5\u05e0\u05ea \u05de\u05e4\u05d4 (street/satellite/topo/dark/terrain)',
             '*/pins* (*/\u05e0\u05e7\u05d5\u05d3\u05d5\u05ea*) \u2014 \u05e7\u05d9\u05e9\u05d5\u05e8\u05d9 Google Maps \u05dc\u05db\u05dc \u05de\u05d9\u05e7\u05d5\u05dd',
             '*/html* (*/\u05d3\u05e3*) \u2014 \u05de\u05e4\u05d4 \u05d0\u05d9\u05e0\u05d8\u05e8\u05d0\u05e7\u05d8\u05d9\u05d1\u05d9\u05ea (\u05e7\u05d5\u05d1\u05e5 HTML)',
             '*/import* (*/\u05d9\u05d1\u05d5\u05d0*) \u2014 \u05d9\u05d1\u05d5\u05d0 \u05e7\u05d5\u05d1\u05e5 KML (\u05d4\u05e9\u05d1 \u05e2\u05dc \u05e7\u05d5\u05d1\u05e5)',
@@ -340,16 +340,35 @@ export class CommandHandler {
         }
     }
 
+    private static MAP_STYLE_ALIASES: Record<string, string> = {
+        'street': 'street', '\u05e8\u05d7\u05d5\u05d1\u05d5\u05ea': 'street',
+        'satellite': 'satellite', '\u05dc\u05d5\u05d5\u05d9\u05d9\u05df': 'satellite', 'sat': 'satellite',
+        'topo': 'topo', '\u05d8\u05d5\u05e4\u05d5': 'topo',
+        'dark': 'dark', '\u05db\u05d4\u05d4': 'dark',
+        'terrain': 'terrain', '\u05e9\u05d8\u05d7': 'terrain',
+    };
+
+    private parseMapStyle(text: string | undefined): string {
+        if (!text) return 'street';
+        const parts = text.trim().split(/\s+/);
+        if (parts.length < 2) return 'street';
+        const arg = parts[1].toLowerCase();
+        return CommandHandler.MAP_STYLE_ALIASES[arg] || 'street';
+    }
+
     private async handleMap(parsed: ParsedMessage, sendReply: (text: string) => Promise<void>): Promise<void> {
         if (!this.adapter) {
             await sendReply('\u274c *\u05e9\u05d2\u05d9\u05d0\u05d4: \u05d4\u05d1\u05d5\u05d8 \u05dc\u05d0 \u05de\u05d7\u05d5\u05d1\u05e8.*');
             return;
         }
 
-        try {
-            await sendReply('\u23f3 *\u05de\u05d9\u05d9\u05e6\u05e8 \u05ea\u05de\u05d5\u05e0\u05ea \u05de\u05e4\u05d4...*');
+        const style = this.parseMapStyle(parsed.text);
 
-            const result = await this.client.exportFile('/export/map-image', this.getGroupFilterParams(parsed));
+        try {
+            await sendReply(`\u23f3 *\u05de\u05d9\u05d9\u05e6\u05e8 \u05de\u05e4\u05d4 (${style})...*`);
+
+            const params = { ...this.getGroupFilterParams(parsed), style };
+            const result = await this.client.exportFile('/export/map-image', params);
 
             if (!result || result.status === 404) {
                 await sendReply('\u2139\ufe0f *\u05d0\u05d9\u05df \u05de\u05d9\u05e7\u05d5\u05de\u05d9\u05dd \u05dc\u05d4\u05d9\u05d5\u05dd \u05d1\u05e7\u05d1\u05d5\u05e6\u05d4 \u05d6\u05d5.*');
@@ -359,7 +378,7 @@ export class CommandHandler {
             await this.adapter.sendFileMessage(
                 parsed.groupId,
                 result.data,
-                `map_${this.getTodayDate()}.png`,
+                `map_${style}_${this.getTodayDate()}.png`,
                 'image/png'
             );
         } catch (error: any) {

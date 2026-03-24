@@ -686,6 +686,40 @@ def export_gpkg():
         session.close()
 
 
+MAP_STYLES = {
+    'street': {
+        'name': 'Street',
+        'name_he': 'רחובות',
+        'url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    },
+    'satellite': {
+        'name': 'Satellite',
+        'name_he': 'לוויין',
+        'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    },
+    'topo': {
+        'name': 'Topographic',
+        'name_he': 'טופוגרפי',
+        'url': 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    },
+    'dark': {
+        'name': 'Dark',
+        'name_he': 'כהה',
+        'url': 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png',
+    },
+    'terrain': {
+        'name': 'Terrain',
+        'name_he': 'שטח',
+        'url': 'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}.png',
+    },
+}
+
+
+@app.route('/api/map-styles', methods=['GET'])
+def get_map_styles():
+    return jsonify({'styles': {k: {'name': v['name'], 'name_he': v['name_he']} for k, v in MAP_STYLES.items()}})
+
+
 @app.route('/export/map-image', methods=['GET'])
 def export_map_image():
     """Generate a static PNG map image with location markers and tracks."""
@@ -728,7 +762,9 @@ def export_map_image():
         if not locations and not tracks:
             return jsonify({'error': 'No visible locations to export'}), 404
 
-        m = StaticMap(800, 600, url_template='https://tile.openstreetmap.org/{z}/{x}/{y}.png')
+        style_key = request.args.get('style', 'street')
+        tile_url = MAP_STYLES.get(style_key, MAP_STYLES['street'])['url']
+        m = StaticMap(800, 600, url_template=tile_url)
         for loc in locations:
             marker = CircleMarker((loc.longitude, loc.latitude), 'red', 10)
             m.add_marker(marker)
