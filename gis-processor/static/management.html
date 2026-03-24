@@ -184,9 +184,10 @@
             border-radius: 12px;
         }
 
-        .qr-container canvas {
-            width: 250px !important;
-            height: 250px !important;
+        .qr-container img {
+            width: 250px;
+            height: 250px;
+            image-rendering: pixelated;
         }
 
         .qr-hint {
@@ -382,7 +383,7 @@
     <div class="modal-overlay" id="qr-modal" onclick="closeQrModal(event)">
         <div class="modal">
             <h3>Scan QR with WhatsApp</h3>
-            <div class="qr-container"><canvas id="qr-canvas"></canvas>
+            <div class="qr-container"><img id="qr-image" style="width:250px;height:250px" alt="QR Code">
                 <div class="qr-hint">WhatsApp > Settings > Linked Devices > Link a Device</div>
             </div>
             <br>
@@ -517,19 +518,20 @@
         }
 
         function renderQrCode(force = false) {
-            const canvas = document.getElementById('qr-canvas');
+            const img = document.getElementById('qr-image');
             const auth = authStates['whatsapp'] || {};
-            if (canvas && auth.qr_data && auth.status === 'qr_ready') {
+            if (img && auth.qr_data && auth.status === 'qr_ready') {
                 if (auth.qr_data !== lastQrData || force) {
                     lastQrData = auth.qr_data;
-                    QRCode.toCanvas(canvas, auth.qr_data, {
-                        width: 250,
+                    QRCode.toDataURL(auth.qr_data, {
+                        width: 300,
                         margin: 1,
-                        color: { dark: '#000', light: '#fff' }
+                        color: { dark: '#000000', light: '#ffffff' }
+                    }, function(err, url) {
+                        if (!err && img) img.src = url;
                     });
                 }
             } else if (auth.status === 'authenticated') {
-                // Auto-close modal when authenticated
                 document.getElementById('qr-modal').classList.remove('visible');
                 lastQrData = null;
             } else {
