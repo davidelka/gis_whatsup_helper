@@ -694,6 +694,8 @@
                 await pollAuth();
                 loadServices();
             }, 2000);
+            // Refresh groups and discovered groups every 5s
+            setInterval(loadGroups, 5000);
         }
         init();
     </script>

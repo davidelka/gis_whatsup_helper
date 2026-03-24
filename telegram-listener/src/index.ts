@@ -78,7 +78,11 @@ async function startBot() {
             const groupName = 'title' in chat ? chat.title || chatId : chatId;
             axios.post(`${pythonServiceUrl}/api/services/telegram/discovered-groups`, {
                 group: { id: chatId, name: groupName }
-            }, { timeout: 3000 }).catch(() => {});
+            }, { timeout: 3000 }).then(() => {
+                logger.info({ chatId, groupName }, 'Discovered group reported to management server');
+            }).catch((err: any) => {
+                logger.warn({ chatId, error: err.message }, 'Failed to report discovered group');
+            });
         }
 
         if (chat.type === 'private') {
