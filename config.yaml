@@ -1,20 +1,22 @@
 whatsapp:
-  # Target groups to listen to
-  # To find group IDs, run the bot and check the logs for incoming messages
-  # Group IDs look like: 123456789012345678@g.us
   report_timeout_seconds: 120
+  # Legacy target_groups - migrated to database on first run
+  # New groups should be added via the management UI at /management
   target_groups:
     - name: "ניסוי"
       id: "120363424895032057@g.us"
-    # Add more groups as needed:
-    # - name: "Another Group"
-    #   id: "987654321098765432@g.us"
     - name: "דקירות פארן"
       id: "120363404243096973@g.us"
     - name: "עקבות פארן"
       id: "120363406931200969@g.us"
     - name: "לז עזוז"
       id: "120363406827366979@g.us"
+
+telegram:
+  bot_token: "YOUR_BOT_TOKEN_HERE"  # Get from @BotFather on Telegram
+  report_timeout_seconds: 120
+  allow_direct_messages: true
+
 python_service:
   host: "localhost"
   port: 5000

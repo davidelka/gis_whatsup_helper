@@ -13,7 +13,8 @@ import yaml
 # Add the current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models import Message, Location, Report, Track, init_db, get_session, get_engine
+from models import Message, Location, Report, Track, ListenerGroup, init_db, get_session, get_engine
+from service_manager import ServiceManager
 from gis_export import (
     export_to_geojson, 
     export_to_shapefile, 
@@ -1036,24 +1037,184 @@ def api_geojson():
         session.close()
 
 
+# ===== Service Management =====
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+service_manager = ServiceManager(project_root)
+
+
+def migrate_config_groups():
+    """Migrate target_groups from config.yaml to database on first run."""
+    session = get_session(engine)
+    try:
+        existing = session.query(ListenerGroup).count()
+        if existing > 0:
+            return  # Already migrated
+
+        whatsapp_groups = config.get('whatsapp', {}).get('target_groups', [])
+        for group in whatsapp_groups:
+            lg = ListenerGroup(
+                platform='whatsapp',
+                group_id=group['id'],
+                group_name=group['name'],
+                is_active=True,
+                is_dm=False,
+            )
+            session.add(lg)
+
+        if whatsapp_groups:
+            session.commit()
+            print(f"Migrated {len(whatsapp_groups)} WhatsApp groups from config.yaml to database")
+    except Exception as e:
+        session.rollback()
+        print(f"Error migrating groups: {e}")
+    finally:
+        session.close()
+
+
+@app.route('/management')
+def management_page():
+    return send_from_directory(app.static_folder, 'management.html')
+
+
+@app.route('/api/services', methods=['GET'])
+def get_services():
+    return jsonify({'services': service_manager.status_all()})
+
+
+@app.route('/api/services/<name>/start', methods=['POST'])
+def start_service(name):
+    result = service_manager.start(name)
+    status_code = 200 if 'error' not in result else 400
+    return jsonify(result), status_code
+
+
+@app.route('/api/services/<name>/stop', methods=['POST'])
+def stop_service(name):
+    result = service_manager.stop(name)
+    return jsonify(result)
+
+
+@app.route('/api/services/<name>/logs', methods=['GET'])
+def get_service_logs(name):
+    lines = request.args.get('lines', 100, type=int)
+    logs = service_manager.get_logs(name, lines)
+    return jsonify({'logs': logs, 'service': name})
+
+
+# ===== Group Configuration CRUD =====
+
+@app.route('/api/groups', methods=['GET'])
+def get_groups():
+    session = get_session(engine)
+    try:
+        query = session.query(ListenerGroup)
+        platform = request.args.get('platform')
+        if platform:
+            query = query.filter(ListenerGroup.platform == platform)
+        groups = query.order_by(ListenerGroup.platform, ListenerGroup.group_name).all()
+        return jsonify({'groups': [g.to_dict() for g in groups]})
+    finally:
+        session.close()
+
+
+@app.route('/api/groups', methods=['POST'])
+def create_group():
+    data = request.get_json()
+    if not data or not data.get('platform') or not data.get('group_id'):
+        return jsonify({'error': 'platform and group_id are required'}), 400
+
+    session = get_session(engine)
+    try:
+        # Check for duplicate
+        existing = session.query(ListenerGroup).filter_by(
+            platform=data['platform'],
+            group_id=data['group_id']
+        ).first()
+        if existing:
+            return jsonify({'error': 'Group already exists', 'group': existing.to_dict()}), 409
+
+        group = ListenerGroup(
+            platform=data['platform'],
+            group_id=data['group_id'],
+            group_name=data.get('group_name', ''),
+            is_active=data.get('is_active', True),
+            is_dm=data.get('is_dm', False),
+        )
+        session.add(group)
+        session.commit()
+        return jsonify({'status': 'created', 'group': group.to_dict()}), 201
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/groups/<int:group_id>', methods=['PATCH'])
+def update_group(group_id):
+    data = request.get_json()
+    session = get_session(engine)
+    try:
+        group = session.query(ListenerGroup).get(group_id)
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+
+        if 'is_active' in data:
+            group.is_active = data['is_active']
+        if 'group_name' in data:
+            group.group_name = data['group_name']
+        if 'is_dm' in data:
+            group.is_dm = data['is_dm']
+
+        session.commit()
+        return jsonify({'status': 'updated', 'group': group.to_dict()})
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/groups/<int:group_id>', methods=['DELETE'])
+def delete_group(group_id):
+    session = get_session(engine)
+    try:
+        group = session.query(ListenerGroup).get(group_id)
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+
+        session.delete(group)
+        session.commit()
+        return jsonify({'status': 'deleted'})
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+import atexit
+
+def cleanup_services():
+    service_manager.stop_all()
+
+atexit.register(cleanup_services)
+
+
 if __name__ == '__main__':
     host = config['python_service']['host']
     port = config['python_service']['port']
-    
-    print(f"🚀 Starting GIS Processor on http://{host}:{port}")
-    print(f"📊 Dashboard: http://{host}:{port}/dashboard")
-    print(f"📁 Database: {database_url}")
-    print(f"📂 Export directory: {export_dir}")
-    
-    # In production, use a real WSGI server like gunicorn
-    app.run(host=host, port=port, debug=False)
-    print(f"")
-    print(f"📋 Report commands:")
-    print(f"   תד = Start report")
-    print(f"   סד = End report (must include location)")
-    
+
+    # Migrate config.yaml groups to database on first run
+    migrate_config_groups()
+
     # Ensure export directory exists
     if not os.path.exists(export_dir):
         os.makedirs(export_dir, exist_ok=True)
-    
-    app.run(host=host, port=port, debug=True)
+
+    print(f"Starting GIS Processor on http://{host}:{port}")
+    print(f"Dashboard: http://{host}:{port}/dashboard")
+    print(f"Management: http://{host}:{port}/management")
+    print(f"Database: {database_url}")
+
+    app.run(host=host, port=port, debug=False)

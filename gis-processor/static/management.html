@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIS Bot - Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #25D366;
+            --secondary-color: #075E54;
+            --dark-bg: #111b21;
+            --panel-bg: #202c33;
+            --card-bg: #2a3942;
+            --text-main: #e9edef;
+            --text-dim: #8696a0;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Assistant', sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--secondary-color);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        header h1 { font-size: 1.3rem; font-weight: 600; }
+
+        header a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        header a:hover { opacity: 1; }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            font-weight: 400;
+        }
+
+        /* Service Cards */
+        .services-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .service-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .service-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .service-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-dot.running { background-color: var(--primary-color); box-shadow: 0 0 6px var(--primary-color); }
+        .status-dot.stopped { background-color: var(--danger); }
+
+        .service-info {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-start {
+            background-color: var(--primary-color);
+            color: #111;
+        }
+        .btn-stop {
+            background-color: var(--danger);
+            color: #fff;
+        }
+        .btn-logs {
+            background-color: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--text-dim);
+        }
+
+        /* Groups Section */
+        .groups-section { margin-bottom: 32px; }
+
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--card-bg);
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            color: var(--text-dim);
+            font-weight: 600;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.2s;
+        }
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .groups-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .groups-table th, .groups-table td {
+            padding: 12px 16px;
+            text-align: right;
+        }
+
+        .groups-table th {
+            background-color: rgba(0,0,0,0.2);
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .groups-table td {
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.9rem;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            display: inline-block;
+        }
+        .toggle input { display: none; }
+        .toggle .slider {
+            position: absolute;
+            inset: 0;
+            background-color: #555;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .toggle .slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            right: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle input:checked + .slider { background-color: var(--primary-color); }
+        .toggle input:checked + .slider::before { transform: translateX(-20px); }
+
+        .btn-delete {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 4px;
+        }
+
+        /* Add Group Form */
+        .add-group-form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .add-group-form input, .add-group-form select {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--text-dim);
+            background-color: var(--panel-bg);
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .add-group-form input { flex: 1; min-width: 120px; }
+
+        .btn-add {
+            background-color: var(--primary-color);
+            color: #111;
+        }
+
+        .dm-label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        /* Log Viewer */
+        .log-viewer {
+            background-color: #0d1117;
+            border-radius: 12px;
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            color: #c9d1d9;
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: none;
+        }
+        .log-viewer.visible { display: block; }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--card-bg);
+            color: var(--text-main);
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: none;
+            font-size: 0.9rem;
+        }
+        .notification.show { display: block; }
+
+        @media (max-width: 700px) {
+            .services-grid { grid-template-columns: 1fr; }
+            .add-group-form { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>GIS Bot - Management</h1>
+        <a href="/dashboard">Dashboard &larr;</a>
+    </header>
+
+    <div class="container">
+        <!-- Services -->
+        <h2>Services</h2>
+        <div class="services-grid" id="services-grid"></div>
+
+        <!-- Log Viewer -->
+        <div class="log-viewer" id="log-viewer"></div>
+
+        <!-- Groups -->
+        <h2>Groups Configuration</h2>
+        <div class="groups-section">
+            <div class="tabs">
+                <div class="tab active" data-platform="whatsapp" onclick="switchTab('whatsapp')">WhatsApp</div>
+                <div class="tab" data-platform="telegram" onclick="switchTab('telegram')">Telegram</div>
+            </div>
+            <table class="groups-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Group ID</th>
+                        <th>Active</th>
+                        <th>DM</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="groups-body"></tbody>
+            </table>
+
+            <div class="add-group-form" id="add-group-form">
+                <input type="text" id="new-group-name" placeholder="Group Name">
+                <input type="text" id="new-group-id" placeholder="Group ID">
+                <label class="dm-label">
+                    <input type="checkbox" id="new-group-dm"> DM
+                </label>
+                <button class="btn btn-add" onclick="addGroup()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        let currentPlatform = 'whatsapp';
+        let activeLogService = null;
+        let logInterval = null;
+
+        // ===== Services =====
+        async function loadServices() {
+            try {
+                const res = await fetch('/api/services');
+                const data = await res.json();
+                renderServices(data.services);
+            } catch (e) {
+                console.error('Failed to load services:', e);
+            }
+        }
+
+        function renderServices(services) {
+            const grid = document.getElementById('services-grid');
+            grid.innerHTML = services.map(svc => {
+                const running = svc.running;
+                const uptime = running ? formatUptime(svc.uptime_seconds) : '';
+                const pidText = running ? `PID: ${svc.pid}` : '';
+                return `
+                    <div class="service-card">
+                        <div class="service-header">
+                            <span class="service-name">${svc.name}</span>
+                            <span class="status-badge">
+                                <span class="status-dot ${running ? 'running' : 'stopped'}"></span>
+                                ${running ? 'Running' : 'Stopped'}
+                            </span>
+                        </div>
+                        <div class="service-info">${pidText}${pidText && uptime ? ' | ' : ''}${uptime}</div>
+                        <div class="service-actions">
+                            ${running
+                                ? `<button class="btn btn-stop" onclick="stopService('${svc.service}')">Stop</button>`
+                                : `<button class="btn btn-start" onclick="startService('${svc.service}')">Start</button>`
+                            }
+                            <button class="btn btn-logs" onclick="toggleLogs('${svc.service}')">Logs</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds) return '';
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            if (h > 0) return `${h}h ${m}m`;
+            if (m > 0) return `${m}m ${s}s`;
+            return `${s}s`;
+        }
+
+        async function startService(name) {
+            try {
+                const res = await fetch(`/api/services/${name}/start`, { method: 'POST' });
+                const data = await res.json();
+                if (data.error) {
+                    notify(data.error, true);
+                } else {
+                    notify(`${data.name} started`);
+                }
+                loadServices();
+            } catch (e) {
+                notify('Failed to start service', true);
+            }
+        }
+
+        async function stopService(name) {
+            try {
+                const res = await fetch(`/api/services/${name}/stop`, { method: 'POST' });
+                const data = await res.json();
+                notify(`${data.name} stopped`);
+                loadServices();
+            } catch (e) {
+                notify('Failed to stop service', true);
+            }
+        }
+
+        async function toggleLogs(name) {
+            const viewer = document.getElementById('log-viewer');
+            if (activeLogService === name) {
+                viewer.classList.remove('visible');
+                activeLogService = null;
+                if (logInterval) clearInterval(logInterval);
+                return;
+            }
+            activeLogService = name;
+            viewer.classList.add('visible');
+            await refreshLogs();
+            if (logInterval) clearInterval(logInterval);
+            logInterval = setInterval(refreshLogs, 3000);
+        }
+
+        async function refreshLogs() {
+            if (!activeLogService) return;
+            try {
+                const res = await fetch(`/api/services/${activeLogService}/logs?lines=100`);
+                const data = await res.json();
+                const viewer = document.getElementById('log-viewer');
+                viewer.textContent = data.logs || '(no logs yet)';
+                viewer.scrollTop = viewer.scrollHeight;
+            } catch (e) { /* ignore */ }
+        }
+
+        // ===== Groups =====
+        async function loadGroups() {
+            try {
+                const res = await fetch(`/api/groups?platform=${currentPlatform}`);
+                const data = await res.json();
+                renderGroups(data.groups);
+            } catch (e) {
+                console.error('Failed to load groups:', e);
+            }
+        }
+
+        function renderGroups(groups) {
+            const body = document.getElementById('groups-body');
+            if (groups.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-dim)">No groups configured</td></tr>`;
+                return;
+            }
+            body.innerHTML = groups.map(g => `
+                <tr>
+                    <td>${g.group_name || '-'}</td>
+                    <td style="font-family:monospace;font-size:0.8rem">${g.group_id}</td>
+                    <td>
+                        <label class="toggle">
+                            <input type="checkbox" ${g.is_active ? 'checked' : ''} onchange="toggleGroup(${g.id}, this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </td>
+                    <td>${g.is_dm ? 'Yes' : '-'}</td>
+                    <td><button class="btn-delete" onclick="deleteGroup(${g.id})" title="Delete">&times;</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function switchTab(platform) {
+            currentPlatform = platform;
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.platform === platform));
+            loadGroups();
+        }
+
+        async function toggleGroup(id, active) {
+            try {
+                await fetch(`/api/groups/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: active })
+                });
+                notify(active ? 'Group activated' : 'Group deactivated');
+            } catch (e) {
+                notify('Failed to update group', true);
+                loadGroups();
+            }
+        }
+
+        async function deleteGroup(id) {
+            if (!confirm('Delete this group?')) return;
+            try {
+                await fetch(`/api/groups/${id}`, { method: 'DELETE' });
+                notify('Group deleted');
+                loadGroups();
+            } catch (e) {
+                notify('Failed to delete group', true);
+            }
+        }
+
+        async function addGroup() {
+            const name = document.getElementById('new-group-name').value.trim();
+            const groupId = document.getElementById('new-group-id').value.trim();
+            const isDm = document.getElementById('new-group-dm').checked;
+
+            if (!groupId) {
+                notify('Group ID is required', true);
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        platform: currentPlatform,
+                        group_id: groupId,
+                        group_name: name,
+                        is_dm: isDm,
+                    })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    notify(data.error, true);
+                } else {
+                    notify('Group added');
+                    document.getElementById('new-group-name').value = '';
+                    document.getElementById('new-group-id').value = '';
+                    document.getElementById('new-group-dm').checked = false;
+                    loadGroups();
+                }
+            } catch (e) {
+                notify('Failed to add group', true);
+            }
+        }
+
+        // ===== Notifications =====
+        function notify(msg, isError = false) {
+            const el = document.getElementById('notification');
+            el.textContent = msg;
+            el.style.borderLeft = isError ? '4px solid var(--danger)' : '4px solid var(--primary-color)';
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 3000);
+        }
+
+        // ===== Init =====
+        loadServices();
+        loadGroups();
+        setInterval(loadServices, 5000);
+    </script>
+</body>
+</html>

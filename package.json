@@ -1,0 +1,9 @@
+{
+    "name": "gis-helper-bot",
+    "private": true,
+    "workspaces": [
+        "shared",
+        "whatsapp-listener",
+        "telegram-listener"
+    ]
+}

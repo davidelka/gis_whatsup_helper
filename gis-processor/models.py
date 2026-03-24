@@ -244,6 +244,30 @@ class Report(Base):
         }
 
 
+class ListenerGroup(Base):
+    """Configured groups/chats for WhatsApp and Telegram listeners."""
+    __tablename__ = 'listener_groups'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    platform = Column(String(20), nullable=False)  # 'whatsapp' or 'telegram'
+    group_id = Column(String(100), nullable=False)
+    group_name = Column(String(200), nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_dm = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'platform': self.platform,
+            'group_id': self.group_id,
+            'group_name': self.group_name,
+            'is_active': self.is_active,
+            'is_dm': self.is_dm,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
 def get_engine(database_url: str):
     """Create database engine."""
     # Ensure the directory exists for SQLite

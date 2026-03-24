@@ -1,0 +1,23 @@
+{
+    "name": "telegram-listener",
+    "version": "1.0.0",
+    "description": "Telegram group/DM listener - forwards messages to GIS processor",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "dev": "ts-node src/index.ts"
+    },
+    "keywords": ["telegram", "gis"],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@gis-bot/shared": "1.0.0",
+        "grammy": "^1.21.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.9.0",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.2.2"
+    }
+}

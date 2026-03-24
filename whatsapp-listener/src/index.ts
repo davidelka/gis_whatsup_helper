@@ -1,11 +1,9 @@
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import * as path from 'path';
-import * as fs from 'fs';
 
-import { loadConfig, getTargetGroupIds, Config } from './config';
+import { loadConfig, getPythonServiceUrl, logger, PythonServiceClient, Config } from '@gis-bot/shared';
 import { MessageHandler } from './messageHandler';
-import { logger } from './logger';
 
 /** Race a promise against a timeout. Rejects with Error on timeout. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -28,11 +26,23 @@ async function startBot(): Promise<Client> {
         process.exit(1);
     }
 
-    const targetGroups = getTargetGroupIds(config);
-    logger.info({
-        groupCount: targetGroups.size,
-        groups: config.whatsapp.target_groups.map(g => g.name)
-    }, 'Target groups configured');
+    const pythonServiceUrl = getPythonServiceUrl(config);
+    const pythonClient = new PythonServiceClient(pythonServiceUrl);
+
+    // Fetch target groups from management server
+    let targetGroups = new Set<string>();
+    try {
+        const groups = await pythonClient.getTargetGroups('whatsapp');
+        targetGroups = new Set(groups.filter(g => g.is_active).map(g => g.group_id));
+        logger.info({ groupCount: targetGroups.size, groups: groups.map(g => g.group_name) }, 'Target groups loaded from management server');
+    } catch (error: any) {
+        logger.warn({ error: error.message }, 'Could not fetch groups from management server, falling back to config.yaml');
+        // Fallback to config.yaml groups
+        if (config.whatsapp.target_groups) {
+            targetGroups = new Set(config.whatsapp.target_groups.map(g => g.id));
+            logger.info({ groupCount: targetGroups.size }, 'Using config.yaml target groups as fallback');
+        }
+    }
 
     // Create message handler
     const messageHandler = new MessageHandler(config);
@@ -42,7 +52,6 @@ async function startBot(): Promise<Client> {
         authStrategy: new LocalAuth({
             clientId: 'gis-bot',
             dataPath: path.resolve(__dirname, '../auth_info'),
-            // Recover from session lock conflicts (prevents silent hangs)
         }),
         webVersionCache: {
             type: 'none',
@@ -67,14 +76,14 @@ async function startBot(): Promise<Client> {
                 '--disable-gl-drawing-for-tests'
             ],
             handleSIGINT: false,
-            protocolTimeout: 60000,        // 60s protocol timeout (was 0 = infinite, causing silent hangs)
+            protocolTimeout: 60000,
         }
     });
 
     // Link client to message handler
     messageHandler.setClient(client);
 
-    // Startup watchdog: if neither 'qr' nor 'ready' fires within 90s, bail out with a clear error
+    // Startup watchdog: if neither 'qr' nor 'ready' fires within 90s, bail out
     let startupResolved = false;
     const startupWatchdog = setTimeout(() => {
         if (!startupResolved) {
@@ -98,31 +107,30 @@ async function startBot(): Promise<Client> {
         console.log('\n');
     });
 
-    // Log loading screen progress (helps diagnose where it freezes)
+    // Log loading screen progress
     client.on('loading_screen', (percent, message) => {
         logger.info({ percent, message }, 'Loading WhatsApp Web...');
     });
 
     // Authentication
     client.on('authenticated', () => {
-        logger.info('✅ Authenticated successfully!');
+        logger.info('Authenticated successfully!');
     });
 
     client.on('auth_failure', (msg) => {
-        logger.error({ msg }, '❌ Authentication failure');
+        logger.error({ msg }, 'Authentication failure');
     });
 
     // Connection
     client.on('ready', async () => {
         startupResolved = true;
         clearTimeout(startupWatchdog);
-        logger.info('✅ WhatsApp GIS Listener is ready!');
+        logger.info('WhatsApp GIS Listener is ready!');
 
-        // List all groups for discovery
         // Delay to let WhatsApp Web internal stores finish initializing
         await new Promise(resolve => setTimeout(resolve, 5000));
         try {
-            logger.info('Searching for groups specified in config (this may take a while if you have many chats)...');
+            logger.info('Searching for groups...');
             const chats = await Promise.race([
                 client.getChats(),
                 new Promise<never>((_, reject) =>
@@ -132,30 +140,22 @@ async function startBot(): Promise<Client> {
             const allGroups = chats.filter(chat => chat.isGroup);
 
             logger.info('--- Group Discovery ---');
-            for (const targetGroup of config.whatsapp.target_groups) {
-                const foundGroup = allGroups.find(g => g.name === targetGroup.name);
+            for (const gId of targetGroups) {
+                const foundGroup = allGroups.find(g => g.id._serialized === gId);
                 if (foundGroup) {
-                    logger.info({
-                        configName: targetGroup.name,
-                        realName: foundGroup.name,
-                        id: foundGroup.id._serialized
-                    }, '✅ Group ID Found');
+                    logger.info({ id: gId, name: foundGroup.name }, 'Group found');
                 } else {
-                    logger.info({
-                        configName: targetGroup.name
-                    }, '❌ No such group found by name on WhatsApp');
+                    logger.warn({ id: gId }, 'Group not found on WhatsApp');
                 }
             }
             logger.info('-----------------------');
         } catch (error: any) {
-            logger.warn({ error: error.message }, 'Could not list groups due to timeout. Fallback: Discovery via incoming messages is active.');
+            logger.warn({ error: error.message }, 'Could not list groups. Discovery via incoming messages is active.');
         }
 
         logger.info('Listening for messages from configured groups...');
 
-        // Re-attach message listener on the current Store.Msg instance.
-        // The library's attachEventListeners() runs before Store.Msg is finalized,
-        // so its 'add' listener is on a stale collection reference.
+        // Re-attach message listener on the current Store.Msg instance
         try {
             await (client as any).pupPage.evaluate(new Function(`
                 window.Store.Msg.on('add', function(msg) {
@@ -180,9 +180,8 @@ async function startBot(): Promise<Client> {
         logger.warn({ reason }, 'Disconnected from WhatsApp');
     });
 
-    // Handle incoming and outgoing messages (for discovery and processing)
+    // Handle incoming and outgoing messages
     client.on('message_create', async (msg: Message) => {
-        // Log all incoming events (temporarily info-level for diagnostics)
         logger.info({
             fromMe: msg.fromMe,
             from: msg.from,
@@ -190,9 +189,6 @@ async function startBot(): Promise<Client> {
             body: msg.body?.substring(0, 20)
         }, 'message_create event received');
 
-        // In groups, msg.from is usually the group ID for incoming messages.
-        // For outgoing messages, msg.to is the group ID.
-        // We check both to find the group context.
         let chat;
         try {
             chat = await withTimeout(msg.getChat(), 8000, 'msg.getChat()');
@@ -203,7 +199,6 @@ async function startBot(): Promise<Client> {
         const groupId = chat.isGroup ? chat.id._serialized : null;
 
         if (groupId) {
-            // Log for discovery
             logger.info({
                 groupId,
                 groupName: chat.name,
@@ -211,22 +206,16 @@ async function startBot(): Promise<Client> {
                 body: msg.body?.substring(0, 20)
             }, 'Group message detected');
 
-            // Check if this group is one of our targets
             if (targetGroups.size > 0 && !targetGroups.has(groupId)) {
-                // Not a target group, skip
                 return;
             }
 
-            // Map msg.from to the correct group ID for the handler if needed
-            // But handleMessage should use the parsed object which we'll fix
-
-            // Handle the message
             await messageHandler.handleMessage(msg);
         }
     });
 
     // Initialize client
-    logger.info('🚀 Initializing WhatsApp Client (this may take a moment)...');
+    logger.info('Initializing WhatsApp Client...');
     client.initialize().catch((error) => {
         logger.error({
             error: error instanceof Error ? error.message : error,
@@ -240,7 +229,6 @@ async function startBot(): Promise<Client> {
 // Global variable for cleanup
 let activeClient: Client | null = null;
 
-// Handle graceful shutdown
 const shutdown = async () => {
     logger.info('Shutting down gracefully...');
     if (activeClient) {
@@ -258,7 +246,7 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 // Start the bot
-logger.info('🚀 Starting WhatsApp GIS Listener Bot...');
+logger.info('Starting WhatsApp GIS Listener Bot...');
 startBot().then(client => {
     activeClient = client;
 }).catch((error) => {

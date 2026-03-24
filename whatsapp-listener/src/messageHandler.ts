@@ -1,9 +1,21 @@
-import axios from 'axios';
 import { Message, Client } from 'whatsapp-web.js';
-import { Config } from './config';
-import { logger } from './logger';
-import { ReportTracker, ReportData, TimeoutEvent } from './reportTracker';
-import { parseSlashCommand, CommandHandler } from './commandHandler';
+import {
+    Config,
+    getPythonServiceUrl,
+    logger,
+    ParsedMessage,
+    LocationData,
+    ReportTracker,
+    ReportData,
+    TimeoutEvent,
+    CommandHandler,
+    parseSlashCommand,
+    PythonServiceClient,
+} from '@gis-bot/shared';
+import { WhatsAppAdapter } from './whatsappAdapter';
+
+// Re-export for backward compatibility
+export { ParsedMessage, LocationData };
 
 /** Race a promise against a timeout. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -15,56 +27,31 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     ]);
 }
 
-export interface LocationData {
-    latitude: number;
-    longitude: number;
-    accuracy?: number;
-    name?: string;
-    address?: string;
-    url?: string;
-}
-
-export interface ParsedMessage {
-    id: string;
-    timestamp: number;
-    groupId: string;
-    groupName?: string;
-    senderId: string;
-    senderName?: string;
-    messageType: string;
-    text?: string;
-    location?: LocationData;
-    mediaType?: string;
-    mediaData?: string; // base64
-    mediaFilename?: string;
-    caption?: string;
-    raw?: any;
-    reportId?: string; // Link to active report
-}
-
 export class MessageHandler {
     private config: Config;
-    private pythonServiceUrl: string;
+    private pythonClient: PythonServiceClient;
     private reportTracker: ReportTracker;
     private commandHandler: CommandHandler;
     private client?: Client;
+    private adapter?: WhatsAppAdapter;
 
     constructor(config: Config) {
         this.config = config;
-        this.pythonServiceUrl = `http://${config.python_service.host}:${config.python_service.port}`;
+        const pythonServiceUrl = getPythonServiceUrl(config);
+        this.pythonClient = new PythonServiceClient(pythonServiceUrl);
 
-        // Initialize ReportTracker with timeout from config
         this.reportTracker = new ReportTracker(
             config.whatsapp.report_timeout_seconds,
             this.handleReportTimeout.bind(this)
         );
 
-        this.commandHandler = new CommandHandler(this.reportTracker, this.pythonServiceUrl);
+        this.commandHandler = new CommandHandler(this.reportTracker, this.pythonClient);
     }
 
     setClient(client: Client) {
         this.client = client;
-        this.commandHandler.setClient(client);
+        this.adapter = new WhatsAppAdapter(client);
+        this.commandHandler.setAdapter(this.adapter);
     }
 
     /**
@@ -85,10 +72,9 @@ export class MessageHandler {
     private async sendReplyDirect(msg: Message, groupId: string, text: string): Promise<void> {
         logger.info({ groupId, textPreview: text.substring(0, 30) }, 'Attempting to send reply');
 
-        // Use sendSeen: false to avoid markedUnread bug (GitHub issue #5718)
         const messageOptions = { sendSeen: false };
 
-        // Try method 1: client.sendMessage() with sendSeen: false
+        // Try method 1: client.sendMessage()
         if (this.client) {
             try {
                 await this.client.sendMessage(groupId, text, messageOptions);
@@ -109,7 +95,7 @@ export class MessageHandler {
             logger.warn({ error: chatError.message, groupId }, 'chat.sendMessage() failed');
         }
 
-        // Try method 3: msg.reply() (doesn't support sendSeen option)
+        // Try method 3: msg.reply()
         try {
             await msg.reply(text);
             logger.info({ groupId }, 'Reply sent via msg.reply()');
@@ -122,7 +108,6 @@ export class MessageHandler {
     private async handleReportTimeout(report: ReportData, event: TimeoutEvent) {
         if (!this.client) return;
 
-        // Use sendSeen: false to avoid markedUnread bug (GitHub issue #5718)
         const messageOptions = { sendSeen: false };
         const quiet = this.commandHandler.isGroupQuiet(report.groupId);
 
@@ -130,18 +115,17 @@ export class MessageHandler {
             if (event === 'warning') {
                 logger.warn({ reportId: report.id }, 'Report inactivity warning - notifying group');
                 if (!quiet) {
-                    const warningMsg = `⚠️ *דיווח של ${report.senderName} עומד להיסגר*\nלא זוהתה פעילות ב-2 הדקות האחרונות. שלח הודעה או מיקום תוך דקה כדי להמשיך את הדיווח.`;
+                    const warningMsg = `\u26a0\ufe0f *\u05d3\u05d9\u05d5\u05d5\u05d7 \u05e9\u05dc ${report.senderName} \u05e2\u05d5\u05de\u05d3 \u05dc\u05d4\u05d9\u05e1\u05d2\u05e8*\n\u05dc\u05d0 \u05d6\u05d5\u05d4\u05ea\u05d4 \u05e4\u05e2\u05d9\u05dc\u05d5\u05ea \u05d1-2 \u05d4\u05d3\u05e7\u05d5\u05ea \u05d4\u05d0\u05d7\u05e8\u05d5\u05e0\u05d5\u05ea. \u05e9\u05dc\u05d7 \u05d4\u05d5\u05d3\u05e2\u05d4 \u05d0\u05d5 \u05de\u05d9\u05e7\u05d5\u05dd \u05ea\u05d5\u05da \u05d3\u05e7\u05d4 \u05db\u05d3\u05d9 \u05dc\u05d4\u05de\u05e9\u05d9\u05da \u05d0\u05ea \u05d4\u05d3\u05d9\u05d5\u05d5\u05d7.`;
                     await this.client.sendMessage(report.groupId, warningMsg, messageOptions);
                 }
             } else if (event === 'closed') {
                 logger.warn({ reportId: report.id }, 'Report inactivity closure - forwarding and notifying group');
 
-                // Forward the report to Python service so it's not lost
-                await this.forwardReportToPythonService(report);
+                await this.pythonClient.forwardReport(report);
 
                 if (!quiet) {
-                    const statusText = report.location ? '' : ' (ללא מיקום)';
-                    const timeoutMsg = `⚠️ *דיווח נסגר אוטומטית*\nהדיווח של ${report.senderName} נסגר עקב חוסר פעילות ונשמר במערכת${statusText}.`;
+                    const statusText = report.location ? '' : ' (\u05dc\u05dc\u05d0 \u05de\u05d9\u05e7\u05d5\u05dd)';
+                    const timeoutMsg = `\u26a0\ufe0f *\u05d3\u05d9\u05d5\u05d5\u05d7 \u05e0\u05e1\u05d2\u05e8 \u05d0\u05d5\u05d8\u05d5\u05de\u05d8\u05d9\u05ea*\n\u05d4\u05d3\u05d9\u05d5\u05d5\u05d7 \u05e9\u05dc ${report.senderName} \u05e0\u05e1\u05d2\u05e8 \u05e2\u05e7\u05d1 \u05d7\u05d5\u05e1\u05e8 \u05e4\u05e2\u05d9\u05dc\u05d5\u05ea \u05d5\u05e0\u05e9\u05de\u05e8 \u05d1\u05de\u05e2\u05e8\u05db\u05ea${statusText}.`;
                     await this.client.sendMessage(report.groupId, timeoutMsg, messageOptions);
                 }
             }
@@ -197,21 +181,18 @@ export class MessageHandler {
                 const isPendingStart = this.reportTracker.getPendingConfirmation(parsed.senderId) === 'start_new';
                 logger.info({ isPendingStart, senderId: parsed.senderId }, 'Starting report');
 
-                // Try to start report
                 const report = this.reportTracker.startReport(parsed, isPendingStart);
                 logger.info({ reportCreated: !!report, reportId: report?.id }, 'Start report result');
 
                 if (!report) {
-                    // Report already open, ask for confirmation
                     this.reportTracker.setPendingConfirmation(parsed.senderId, 'start_new');
-                    await this.sendReply(msg, parsed.groupId, '⚠️ *יש לך כבר דיווח פתוח.*\nשלח שוב "תד" כדי לבטל את הישן ולהתחיל חדש.');
+                    await this.sendReply(msg, parsed.groupId, '\u26a0\ufe0f *\u05d9\u05e9 \u05dc\u05da \u05db\u05d1\u05e8 \u05d3\u05d9\u05d5\u05d5\u05d7 \u05e4\u05ea\u05d5\u05d7.*\n\u05e9\u05dc\u05d7 \u05e9\u05d5\u05d1 "\u05ea\u05d3" \u05db\u05d3\u05d9 \u05dc\u05d1\u05d8\u05dc \u05d0\u05ea \u05d4\u05d9\u05e9\u05df \u05d5\u05dc\u05d4\u05ea\u05d7\u05d9\u05dc \u05d7\u05d3\u05e9.');
                     return;
                 }
 
                 if (isPendingStart) {
-                    await this.sendReply(msg, parsed.groupId, '🔄 *דיווח קודם בוטל. התחיל דיווח חדש.*');
+                    await this.sendReply(msg, parsed.groupId, '\u{1f504} *\u05d3\u05d9\u05d5\u05d5\u05d7 \u05e7\u05d5\u05d3\u05dd \u05d1\u05d5\u05d8\u05dc. \u05d4\u05ea\u05d7\u05d9\u05dc \u05d3\u05d9\u05d5\u05d5\u05d7 \u05d7\u05d3\u05e9.*');
                 }
-                // Don't forward the command itself
                 return;
             }
 
@@ -220,25 +201,22 @@ export class MessageHandler {
                 const hasActiveReport = this.reportTracker.hasActiveReport(parsed.senderId);
                 logger.info({ isPendingClose, hasActiveReport, senderId: parsed.senderId }, 'Ending report');
 
-                // Try to end the report
                 const report = this.reportTracker.endReport(parsed, isPendingClose);
                 logger.info({ reportEnded: !!report, reportId: report?.id, hasLocation: !!report?.location }, 'End report result');
 
                 if (report) {
                     logger.info({ reportId: report.id }, 'Forwarding report to Python service');
-                    await this.forwardReportToPythonService(report);
+                    await this.pythonClient.forwardReport(report);
                     const replyText = !report.location
-                        ? '⚠️ *הדיווח נשלח ללא מיקום.*'
-                        : '✅ *הדיווח נשלח בהצלחה!*';
+                        ? '\u26a0\ufe0f *\u05d4\u05d3\u05d9\u05d5\u05d5\u05d7 \u05e0\u05e9\u05dc\u05d7 \u05dc\u05dc\u05d0 \u05de\u05d9\u05e7\u05d5\u05dd.*'
+                        : '\u2705 *\u05d4\u05d3\u05d9\u05d5\u05d5\u05d7 \u05e0\u05e9\u05dc\u05d7 \u05d1\u05d4\u05e6\u05dc\u05d7\u05d4!*';
                     await this.sendReply(msg, parsed.groupId, replyText);
                 } else {
-                    // No active report or missing location (validation)
                     if (!this.reportTracker.hasActiveReport(parsed.senderId)) {
-                        await this.sendReply(msg, parsed.groupId, '⚠️ *אין לך דיווח פתוח כרגע.*\nשלח "תד" כדי להתחיל.');
+                        await this.sendReply(msg, parsed.groupId, '\u26a0\ufe0f *\u05d0\u05d9\u05df \u05dc\u05da \u05d3\u05d9\u05d5\u05d5\u05d7 \u05e4\u05ea\u05d5\u05d7 \u05db\u05e8\u05d2\u05e2.*\n\u05e9\u05dc\u05d7 "\u05ea\u05d3" \u05db\u05d3\u05d9 \u05dc\u05d4\u05ea\u05d7\u05d9\u05dc.');
                     } else {
-                        // Missing location validation failure
                         this.reportTracker.setPendingConfirmation(parsed.senderId, 'close_without_location');
-                        await this.sendReply(msg, parsed.groupId, '⚠️ *חסר מיקום בדיווח!*\nאנא שלח מיקום (Location) או שלח שוב "סד" לסגירה ללא מיקום.');
+                        await this.sendReply(msg, parsed.groupId, '\u26a0\ufe0f *\u05d7\u05e1\u05e8 \u05de\u05d9\u05e7\u05d5\u05dd \u05d1\u05d3\u05d9\u05d5\u05d5\u05d7!*\n\u05d0\u05e0\u05d0 \u05e9\u05dc\u05d7 \u05de\u05d9\u05e7\u05d5\u05dd (Location) \u05d0\u05d5 \u05e9\u05dc\u05d7 \u05e9\u05d5\u05d1 "\u05e1\u05d3" \u05dc\u05e1\u05d2\u05d9\u05e8\u05d4 \u05dc\u05dc\u05d0 \u05de\u05d9\u05e7\u05d5\u05dd.');
                     }
                 }
                 return;
@@ -246,7 +224,6 @@ export class MessageHandler {
 
             // Check if this message belongs to an active report
             if (this.reportTracker.hasActiveReport(parsed.senderId)) {
-                // Add to report, don't forward individual messages
                 this.reportTracker.addToReport(parsed);
                 logger.debug({
                     senderId: parsed.senderId,
@@ -257,7 +234,7 @@ export class MessageHandler {
             }
 
             // Regular message - forward to Python service
-            await this.forwardToPythonService(parsed);
+            await this.pythonClient.forwardMessage(parsed);
 
         } catch (error: any) {
             logger.error({
@@ -270,7 +247,6 @@ export class MessageHandler {
     }
 
     private async parseMessage(msg: Message): Promise<ParsedMessage | null> {
-        // whatsapp-web.js specific checks
         let chat;
         try {
             chat = await withTimeout(msg.getChat(), 8000, 'msg.getChat()');
@@ -280,7 +256,6 @@ export class MessageHandler {
         }
 
         if (!chat.isGroup) {
-            // Skip non-group messages
             return null;
         }
 
@@ -301,6 +276,7 @@ export class MessageHandler {
             senderName: contact?.pushname || msg.author || msg.from,
             messageType: msg.type,
             text: msg.body,
+            source: 'whatsapp',
         };
 
         // Extract location data
@@ -319,7 +295,7 @@ export class MessageHandler {
                 const media = await msg.downloadMedia();
                 if (media) {
                     parsed.mediaType = msg.type;
-                    parsed.mediaData = media.data; // Base64 string
+                    parsed.mediaData = media.data;
                     parsed.mediaFilename = media.filename || `${msg.id.id}.jpg`;
                     parsed.caption = msg.body;
                 }
@@ -334,56 +310,5 @@ export class MessageHandler {
         }
 
         return parsed;
-    }
-
-    private async forwardToPythonService(message: ParsedMessage): Promise<void> {
-        try {
-            const response = await axios.post(`${this.pythonServiceUrl}/message`, message, {
-                timeout: 5000,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            logger.debug({
-                status: response.status,
-                messageId: message.id
-            }, 'Message forwarded to Python service');
-
-        } catch (error: any) {
-            if (error.code === 'ECONNREFUSED') {
-                logger.warn('Python service not available - message not forwarded');
-            } else {
-                logger.error({ error: error.message }, 'Failed to forward message to Python service');
-            }
-        }
-    }
-
-    private async forwardReportToPythonService(report: ReportData): Promise<void> {
-        try {
-            // Clean report data for JSON (remove timer handle)
-            const cleanReport = { ...report };
-            delete (cleanReport as any).timeoutHandle;
-
-            const response = await axios.post(`${this.pythonServiceUrl}/report`, cleanReport, {
-                timeout: 10000,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            logger.info({
-                status: response.status,
-                reportId: report.id,
-                reportStatus: report.status
-            }, 'Report forwarded to Python service');
-
-        } catch (error: any) {
-            if (error.code === 'ECONNREFUSED') {
-                logger.warn({ reportId: report.id }, 'Python service not available - report not forwarded');
-            } else {
-                logger.error({ error: error.message, reportId: report.id }, 'Failed to forward report to Python service');
-            }
-        }
     }
 }
