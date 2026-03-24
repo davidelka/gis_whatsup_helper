@@ -447,8 +447,10 @@
                 `;
             }).join('');
 
-            // Render QR code if needed
-            renderQrCode();
+            // Update QR code if modal is open
+            if (document.getElementById('qr-modal').classList.contains('visible')) {
+                renderQrCode();
+            }
         }
 
         function renderWhatsAppAuth(running, auth) {
@@ -504,7 +506,8 @@
 
         function openQrModal() {
             document.getElementById('qr-modal').classList.add('visible');
-            renderQrCode(true);
+            // Small delay to ensure canvas is laid out before rendering
+            setTimeout(() => renderQrCode(true), 50);
         }
 
         function closeQrModal(e) {
