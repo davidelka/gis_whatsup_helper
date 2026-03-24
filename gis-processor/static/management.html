@@ -405,38 +405,42 @@
         }
 
         function renderWhatsAppAuth(running, auth) {
-            if (!running) return '<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Not running</div></div>';
+            const disconnectBtn = `<button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('whatsapp')">Disconnect</button>`;
+
+            if (!running) return '<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Not running</div>' + disconnectBtn + '</div>';
 
             const status = auth.status || 'disconnected';
 
             if (status === 'authenticated') {
-                return `<div class="auth-section"><div class="auth-status auth-connected">Connected</div><button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('whatsapp')">Disconnect</button></div>`;
+                return `<div class="auth-section"><div class="auth-status auth-connected">Connected</div>${disconnectBtn}</div>`;
             }
             if (status === 'qr_ready') {
                 return `
                     <div class="auth-section">
                         <div class="auth-status auth-waiting">Scan QR code with WhatsApp:</div>
                         <div class="qr-container"><canvas id="qr-canvas"></canvas><div class="qr-hint">Open WhatsApp > Settings > Linked Devices > Link a Device</div></div>
+                        ${disconnectBtn}
                     </div>`;
             }
             if (status === 'waiting_qr') {
-                return `<div class="auth-section"><div class="auth-status auth-waiting">Starting... waiting for QR code</div></div>`;
+                return `<div class="auth-section"><div class="auth-status auth-waiting">Starting... waiting for QR code</div>${disconnectBtn}</div>`;
             }
             if (status === 'auth_failure') {
-                return `<div class="auth-section"><div class="auth-status auth-error">Authentication failed - restart to retry</div></div>`;
+                return `<div class="auth-section"><div class="auth-status auth-error">Authentication failed</div>${disconnectBtn}</div>`;
             }
-            return `<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Connecting...</div></div>`;
+            return `<div class="auth-section"><div class="auth-status" style="color:var(--text-dim)">Connecting...</div>${disconnectBtn}</div>`;
         }
 
         function renderTelegramAuth(running, auth) {
             const status = auth.status || 'disconnected';
             const username = auth.bot_username || '';
+            const disconnectBtn = `<button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('telegram')">Disconnect</button>`;
 
             let statusHtml = '';
             if (running && status === 'authenticated' && username) {
-                statusHtml = `<div class="auth-status auth-connected">Connected as @${username}</div><button class="btn btn-logs" style="margin-top:8px;color:var(--danger);border-color:var(--danger)" onclick="disconnectService('telegram')">Disconnect</button>`;
+                statusHtml = `<div class="auth-status auth-connected">Connected as @${username}</div>${disconnectBtn}`;
             } else if (running && status === 'auth_failure') {
-                statusHtml = `<div class="auth-status auth-error">Connection failed - check token</div>`;
+                statusHtml = `<div class="auth-status auth-error">Connection failed - check token</div>${disconnectBtn}`;
             } else if (running) {
                 statusHtml = `<div class="auth-status auth-waiting">Connecting...</div>`;
             }
